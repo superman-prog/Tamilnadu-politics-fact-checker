@@ -185,13 +185,7 @@ def run_scout():
                 except Exception as e:
                     print(f"⚠️ Initial context screening bypass: {e}")
 
-        # -----------------------------------------------------------------
-)
-                timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                safe_title = "".join([c for c in video['title'] if c.isalpha() or c.isdigit() or c==' ']).rstrip()
-                filename = f"{REPORTS_DIR}/{timestamp}_{saf    # PHASE 2: DEEP MULTIMODAL AUDIT & REFINEMENT (Gemini & Llama 3.3)
-
-                                                            #    # -----------------------------------------------------------------
+    # -----------------------------------------------------------------
     # PHASE 2: DEEP MULTIMODAL AUDIT & REFINEMENT (Gemini & Llama 3.3)
     # -----------------------------------------------------------------
     current_key_index = 0
@@ -261,6 +255,7 @@ def run_scout():
                 with open(filename, "w", encoding="utf-8") as f:
                     f.write(report_content)
                 
+                db["backlog"].append(video['url'])
                 db["api_calls_today"] += 1
                 success = True 
                 
@@ -296,4 +291,4 @@ def run_scout():
 
 if __name__ == "__main__":
     run_scout()
-    
+                
