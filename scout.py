@@ -186,6 +186,12 @@ def run_scout():
                     print(f"⚠️ Initial context screening bypass: {e}")
 
         # -----------------------------------------------------------------
+)
+                timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                safe_title = "".join([c for c in video['title'] if c.isalpha() or c.isdigit() or c==' ']).rstrip()
+                filename = f"{REPORTS_DIR}/{timestamp}_{saf    # PHASE 2: DEEP MULTIMODAL AUDIT & REFINEMENT (Gemini & Llama 3.3)
+
+                                                            # -----------------------------------------------------------------
     # PHASE 2: DEEP MULTIMODAL AUDIT & REFINEMENT (Gemini & Llama 3.3)
     # -----------------------------------------------------------------
     current_key_index = 0
@@ -208,14 +214,14 @@ def run_scout():
                 print(f"⏳ Injecting anti-sensor execution delay: {sleep_time}s...")
                 time.sleep(sleep_time)
                 
-                # LAYER 1: Deep Multimodal Extraction and Live Search Grounding
+                # LAYER 1: Deep Multimodal Extraction
                 gemini_response = heavy_client.models.generate_content(
                     model="gemini-3.5-flash",
                     contents=types.Content(parts=[
                         types.Part(file_data=types.FileData(file_uri=video['url'])),
                         types.Part(text=HEAVY_PROMPT)
                     ]),
-                    config=types.GenerateContentConfig(tools=[{"google_search": {}}], temperature=0.10)
+                    config=types.GenerateContentConfig(temperature=0.10)
                 )
                 
                 raw_report = gemini_response.text
@@ -234,9 +240,11 @@ def run_scout():
                     final_polished_report = auditor_response.choices[0].message.content
                     print("🔥 Layer 2 structural clarification applied successfully.")
                 except Exception as audit_err:
+                    # FUTURE PROOFING: In case Groq (Llama) throws a rate limit or goes down
                     print(f"⚠️ Layer 2 validation bypass ({audit_err}). Retaining primary baseline report.")
                     final_polished_report = raw_report
                 
+                # Save sanitized system outputs
                 os.makedirs(REPORTS_DIR, exist_ok=True)
                 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                 safe_title = "".join([c for c in video['title'] if c.isalpha() or c.isdigit() or c==' ']).rstrip()
@@ -246,11 +254,10 @@ def run_scout():
                     f.write(
                         f"# 🛰️ Grounded Report: {video['title']}\n"
                         f"**Source Video**: {video['url']}\n\n"
-                        f"> 🛠️ *This forensic analysis was automated, dual-audited, and pushed live by **Scavenger Scout**, an open-source engine built by **thamilazhagi and superman**. Want to track your own channels, change keywords, or contribute to our global roadmap? Join us here:* **https://github.com/superman-prog/Tamilnadu-politics-fact-checker**\n\n"
+                        f"> 🛠️ *This forensic analysis was automated, dual-audited, and pushed live by **Scavenger Scout**, an open-source engine built by **Superman**. Want to track your own channels, change keywords, or contribute to our global roadmap? Join us here:* **https://github.com/superman-prog/Tamilnadu-politics-fact-checker**\n\n"
                         f"---\n\n"
                         f"{final_polished_report}"
                     )
-                # =============================================================================
                 
                 db["api_calls_today"] += 1
                 success = True 
@@ -259,18 +266,29 @@ def run_scout():
                 err_msg = str(e)
                 print(f"⚠️ Network exception encountered on Key Slot [{current_key_index + 1}]: {err_msg}")
                 
-                # Dynamic key burnout registration on quota or restriction trips
+                # CURRENT FIX: Rate Limits (429) & Quota Burnout
                 if any(x in err_msg for x in ["429", "Quota", "Forbidden", "403", "ResourceExhausted"]):
                     print(f"🛑 Key Slot [{current_key_index + 1}] blocked or limited. Isolating slot...")
                     db["cooled_keys"][str(current_key_index)] = today_str
                     current_key_index += 1  # Auto-advance processing pointer to a fresh key
+                    print("⏳ Taking a 65-second breath to clear system token caps before next key...")
+                    time.sleep(65)
+                    
+                # FUTURE PROOFING: Internal Server Errors (Google's fault)
+                elif any(x in err_msg for x in ["500", "503", "Internal Server Error", "Service Unavailable"]):
+                    print("🌩️ Google server hiccup (500/503). Not burning the key. Retrying same slot in 30s...")
+                    time.sleep(30)
+                    # Notice we DO NOT add +1 to current_key_index here, so it retries the same key
+                    
+                # FUTURE PROOFING: Dead Links (Video deleted/privated by news channel)
+                elif any(x in err_msg for x in ["404", "Not Found", "VideoUnavailable"]):
+                    print("🗑️ Source video was deleted or made private. Skipping to next news item.")
+                    break # Breaks the while loop to skip the video entirely without burning a key
+                    
+                # Catch-all for unknown errors
                 else:
                     print("❌ Non-quota system error. Dropping bad target string link.")
                     break 
                     
     save_db(db)
     print("🏁 Execution cycle wrapped up. Systems returned to low-power listening state.")
-
-if __name__ == "__main__":
-    run_scout()
-                
