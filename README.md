@@ -21,6 +21,8 @@ The framework is entirely serverless, stateless, and optimized to run natively w
 
 ---
 
+```
+
 ## 🏗️ System Architecture
 
 
@@ -41,11 +43,14 @@ The framework is entirely serverless, stateless, and optimized to run natively w
               ▼
  [ 📜 Standardized Markdown Report Saved to /reports ]
 
+```
 ⚡ Technical Highlights
  * Adversarial Multi-Model Verification: Routes text payloads across distinct model architectures from independent providers to cross-examine arguments, minimize factual drift, and mitigate hallucinations.
  * Dynamic Key Rotation Pool: Resilient against free-tier API access restrictions. The engine automatically handles key cooling cycles; if a token hits a rate limit (429) or access boundary (403), the script logs the status and fails over to the next active credential slot.
  * Telemetry Obfuscation & Jitter Control: Evades data-center traffic flags by introducing randomized processing delays (12-28s execution jitter) and varying localized header telemetry to mirror standard human browsing intervals.
  * Priority-Inverted Summaries: Structured specifically to separate noise from substance. Verified reports automatically isolate and highlight FALSE, MISLEADING, or UNVERIFIED content at the top of the file before appending the complete translated dialogue transcript below.
+```
+ * 
 📁 Repository Blueprint
 ├── .github/workflows/
 │   └── run.yml          # GitHub Actions workflow engine (configured for 2-hour intervals)
@@ -53,7 +58,7 @@ The framework is entirely serverless, stateless, and optimized to run natively w
 ├── .gitignore           # Protective barrier preventing local tracking caches from staging
 ├── database.json        # Engine state storage (persists daily counters and cooldown indexes)
 └── scout.py             # Core Python automation pipeline logic
-
+```
 🚀 Deployment Guide
 Setting up an independent monitoring node requires four straightforward configuration steps:
 1. Fork the Repository
