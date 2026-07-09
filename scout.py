@@ -185,7 +185,7 @@ def run_scout():
                 except Exception as e:
                     print(f"⚠️ Initial context screening bypass: {e}")
 
-    # -----------------------------------------------------------------
+        # -----------------------------------------------------------------
     # PHASE 2: DEEP MULTIMODAL AUDIT & REFINEMENT (Gemini & Llama 3.3)
     # -----------------------------------------------------------------
     current_key_index = 0
@@ -237,14 +237,20 @@ def run_scout():
                     print(f"⚠️ Layer 2 validation bypass ({audit_err}). Retaining primary baseline report.")
                     final_polished_report = raw_report
                 
-                # Save sanitized system outputs
                 os.makedirs(REPORTS_DIR, exist_ok=True)
                 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                 safe_title = "".join([c for c in video['title'] if c.isalpha() or c.isdigit() or c==' ']).rstrip()
                 filename = f"{REPORTS_DIR}/{timestamp}_{safe_title[:30].replace(' ', '_')}.md"
                 
                 with open(filename, "w", encoding="utf-8") as f:
-                    f.write(f"# 🛰️ Grounded Report: {video['title']}\n**Source**: {video['url']}\n\n---\n\n{final_polished_report}")
+                    f.write(
+                        f"# 🛰️ Grounded Report: {video['title']}\n"
+                        f"**Source Video**: {video['url']}\n\n"
+                        f"> 🛠️ *This forensic analysis was automated, dual-audited, and pushed live by **Scavenger Scout**, an open-source engine built by **thamilazhagi and superman**. Want to track your own channels, change keywords, or contribute to our global roadmap? Join us here:* **https://github.com/superman-prog/Tamilnadu-politics-fact-checker**\n\n"
+                        f"---\n\n"
+                        f"{final_polished_report}"
+                    )
+                # =============================================================================
                 
                 db["api_calls_today"] += 1
                 success = True 
@@ -267,3 +273,4 @@ def run_scout():
 
 if __name__ == "__main__":
     run_scout()
+                
