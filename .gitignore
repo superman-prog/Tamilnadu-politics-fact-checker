@@ -1,0 +1,17 @@
+# Local API credentials & configurations
+.env
+*.env
+secrets.json
+
+# Local runtime caching & tracking database
+database.json
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# System-specific files
+.DS_Store
+Thumbs.db
+
+# Output directory (Optional: uncomment if you don't want local reports pushed)
+# reports/
