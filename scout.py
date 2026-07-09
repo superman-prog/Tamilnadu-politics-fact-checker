@@ -191,7 +191,7 @@ def run_scout():
                 safe_title = "".join([c for c in video['title'] if c.isalpha() or c.isdigit() or c==' ']).rstrip()
                 filename = f"{REPORTS_DIR}/{timestamp}_{saf    # PHASE 2: DEEP MULTIMODAL AUDIT & REFINEMENT (Gemini & Llama 3.3)
 
-                                                            # -----------------------------------------------------------------
+                                                            #    # -----------------------------------------------------------------
     # PHASE 2: DEEP MULTIMODAL AUDIT & REFINEMENT (Gemini & Llama 3.3)
     # -----------------------------------------------------------------
     current_key_index = 0
@@ -240,24 +240,26 @@ def run_scout():
                     final_polished_report = auditor_response.choices[0].message.content
                     print("🔥 Layer 2 structural clarification applied successfully.")
                 except Exception as audit_err:
-                    # FUTURE PROOFING: In case Groq (Llama) throws a rate limit or goes down
                     print(f"⚠️ Layer 2 validation bypass ({audit_err}). Retaining primary baseline report.")
                     final_polished_report = raw_report
                 
-                                # Save sanitized system outputs
+                # Save sanitized system outputs
                 os.makedirs(REPORTS_DIR, exist_ok=True)
                 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                 safe_title = "".join([c for c in video['title'] if c.isalpha() or c.isdigit() or c==' ']).rstrip()
                 filename = f"{REPORTS_DIR}/{timestamp}_{safe_title[:30].replace(' ', '_')}.md"
                 
+                # Fixed explicit file writing block with clean string assignments
+                report_content = (
+                    f"# 🛰️ Grounded Report: {video['title']}\n"
+                    f"**Source Video**: {video['url']}\n\n"
+                    f"> 🛠️ *This forensic analysis was automated, dual-audited, and pushed live by **Scavenger Scout**, an open-source engine built by **Superman**. Want to track your own channels, change keywords, or contribute to our global roadmap? Join us here:* **https://github.com/superman-prog/Tamilnadu-politics-fact-checker**\n\n"
+                    f"---\n\n"
+                    f"{final_polished_report}"
+                )
+                
                 with open(filename, "w", encoding="utf-8") as f:
-                    f.write(
-                        f"# 🛰️ Grounded Report: {video['title']}\n"
-                        f"**Source Video**: {video['url']}\n\n"
-                        f"> 🛠️ *This forensic analysis was automated, dual-audited, and pushed live by **Scavenger Scout**, an open-source engine built by **Superman**. Want to track your own channels, change keywords, or contribute to our global roadmap? Join us here:* **https://github.com/superman-prog/Tamilnadu-politics-fact-checker**\n\n"
-                        f"---\n\n"
-                        f"{final_polished_report}"
-                    )
+                    f.write(report_content)
                 
                 db["api_calls_today"] += 1
                 success = True 
@@ -276,7 +278,7 @@ def run_scout():
                     
                 # FUTURE PROOFING: Internal Server Errors
                 elif any(x in err_msg for x in ["500", "503", "Internal Server Error", "Service Unavailable"]):
-                    print("🌩️ Google server hiccup (500/503). Not burning the key. Retrying same slot in 30s...")
+                    print("🌩️ Google server hiccup (500/503). Retrying same slot in 30s...")
                     time.sleep(30)
                     
                 # FUTURE PROOFING: Dead Links
