@@ -244,7 +244,7 @@ def run_scout():
                     print(f"⚠️ Layer 2 validation bypass ({audit_err}). Retaining primary baseline report.")
                     final_polished_report = raw_report
                 
-                # Save sanitized system outputs
+                                # Save sanitized system outputs
                 os.makedirs(REPORTS_DIR, exist_ok=True)
                 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                 safe_title = "".join([c for c in video['title'] if c.isalpha() or c.isdigit() or c==' ']).rstrip()
@@ -274,16 +274,15 @@ def run_scout():
                     print("⏳ Taking a 65-second breath to clear system token caps before next key...")
                     time.sleep(65)
                     
-                # FUTURE PROOFING: Internal Server Errors (Google's fault)
+                # FUTURE PROOFING: Internal Server Errors
                 elif any(x in err_msg for x in ["500", "503", "Internal Server Error", "Service Unavailable"]):
                     print("🌩️ Google server hiccup (500/503). Not burning the key. Retrying same slot in 30s...")
                     time.sleep(30)
-                    # Notice we DO NOT add +1 to current_key_index here, so it retries the same key
                     
-                # FUTURE PROOFING: Dead Links (Video deleted/privated by news channel)
+                # FUTURE PROOFING: Dead Links
                 elif any(x in err_msg for x in ["404", "Not Found", "VideoUnavailable"]):
                     print("🗑️ Source video was deleted or made private. Skipping to next news item.")
-                    break # Breaks the while loop to skip the video entirely without burning a key
+                    break 
                     
                 # Catch-all for unknown errors
                 else:
@@ -292,3 +291,7 @@ def run_scout():
                     
     save_db(db)
     print("🏁 Execution cycle wrapped up. Systems returned to low-power listening state.")
+
+if __name__ == "__main__":
+    run_scout()
+    
