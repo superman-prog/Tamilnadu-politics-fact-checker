@@ -23,7 +23,7 @@ The framework is entirely serverless, stateless, and optimized to run natively w
 
 ## 🏗️ System Architecture
 
-```text
+
 [ Regional Media RSS Feeds ]
               │
               ▼
