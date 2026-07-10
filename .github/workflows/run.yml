@@ -2,22 +2,18 @@ name: Automated Multi-Agent OSINT Engine
 
 on:
   schedule:
-    - cron: '0 */2 * * *' # Executes automatically every 2 hours
-  workflow_dispatch:     # Retains your manual "Run" action dashboard button
-
-# 🚀 THE MAGIC FIX FOR THE 403 PUSH ERROR
-permissions:
-  contents: write
+    - cron: '0 */2 * * *' # Runs every 2 hours
+  workflow_dispatch:      # Allows manual trigger
 
 jobs:
   execute-pipeline:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Clone Repository Source
+    - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Set Up Python Environment
+    - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
@@ -25,34 +21,35 @@ jobs:
     - name: Install Runtime Core Dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install feedparser groq google-genai
+        pip install groq google-genai feedparser
 
-    - name: Execute Stealth Audit Pipeline
+    # 🚀 THE NEW SHIELD: This checks if YouTube is blocking the server IP
+    - name: Verify YouTube Feed Clearance
+      id: network_check
+      run: |
+        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://www.youtube.com/feeds/videos.xml?channel_id=UCFzg1PqG9yXXSvcQ0F2-z4Q")
+        echo "📡 Active IP Channel Status: $HTTP_STATUS"
+        
+        if [ "$HTTP_STATUS" -eq 404 ] || [ "$HTTP_STATUS" -eq 429 ]; then
+          echo "🚨 YouTube has blacklisted this host IP. Force-failing container to cycle runners..."
+          exit 1
+        fi
+        echo "✅ Connection clear. Ready for execution."
+
+    - name: Run Scavenger Scout Engine
+      if: success()
       env:
         GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         GEMINI_KEYS_STRING: ${{ secrets.GEMINI_KEYS_STRING }}
       run: python scout.py
 
-    # 🚀 INSTANT DOWNLOAD VAULT: Packages everything into a neat zip folder 
-    - name: Upload Grounded Reports as Artifacts
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: Scavenger-Reports-Archive
-        path: |
-          reports/
-          database.json
-        retention-days: 5
-
-    - name: Commit and Push Grounded Reports
+    - name: Commit and Push Reports
+      if: success()
       run: |
         git config --global user.name "Scavenger Scout Bot"
-        git config --global user.email "actions@github.com"
-        
-        # Safely adds the folder and file if they exist
-        if [ -d "reports" ]; then git add reports/; fi
-        if [ -f "database.json" ]; then git add -f database.json; fi
-        
-        # Pushes to your repo automatically
-        git diff --quiet && git diff --staged --quiet || (git commit -m "🛰️ Scout Engine: Added new grounded forensic reports" && git push)
+        git config --global user.email "scout-bot@github.com"
+        git add reports/ database.json
+        # Only commit if there are actual changes
+        git commit -m "Automated OSINT Sweep: Added new reports & updated DB" || exit 0
+        git push origin main
         
