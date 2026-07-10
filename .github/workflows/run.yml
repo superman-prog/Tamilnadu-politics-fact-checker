@@ -5,6 +5,10 @@ on:
     - cron: '0 */2 * * *' # Executes automatically every 2 hours
   workflow_dispatch:     # Retains your manual "Run" action dashboard button
 
+# 🚀 THE MAGIC FIX FOR THE 403 PUSH ERROR
+permissions:
+  contents: write
+
 jobs:
   execute-pipeline:
     runs-on: ubuntu-latest
@@ -29,17 +33,26 @@ jobs:
         GEMINI_KEYS_STRING: ${{ secrets.GEMINI_KEYS_STRING }}
       run: python scout.py
 
+    # 🚀 INSTANT DOWNLOAD VAULT: Packages everything into a neat zip folder 
+    - name: Upload Grounded Reports as Artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Scavenger-Reports-Archive
+        path: |
+          reports/
+          database.json
+        retention-days: 5
+
     - name: Commit and Push Grounded Reports
       run: |
         git config --global user.name "Scavenger Scout Bot"
         git config --global user.email "actions@github.com"
         
-        # Safely add the reports directory if it exists
+        # Safely adds the folder and file if they exist
         if [ -d "reports" ]; then git add reports/; fi
+        if [ -f "database.json" ]; then git add -f database.json; fi
         
-        # Force add the database tracker to bypass .gitignore rules
-        git add -f database.json
-        
-        # Only commit if there are actual changes to prevent empty commit workflow crashes
+        # Pushes to your repo automatically
         git diff --quiet && git diff --staged --quiet || (git commit -m "🛰️ Scout Engine: Added new grounded forensic reports" && git push)
         
