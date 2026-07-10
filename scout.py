@@ -14,15 +14,16 @@ GEMINI_KEYS_STRING = os.environ.get("GEMINI_KEYS_STRING")
 
 # 🚀 TARGET FEEDS
 TARGET_FEEDS = [
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UCFzg1PqG9yXXSvcQ0F2-z4Q", # Polimer News
-    "https://www.youtube.com/feeds/videos.xml?user=PuthiyaThalaimuraiTV",            # Puthiya Thalaimurai
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UC1HqQxN1Xk_kO6xeqZzV_Nw", # Thanthi TV
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UC_zEjiN-K9V2OnaW5wI4oJg", # Chanakyaa
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UClX6M-hDrc_4v5q4jB5uU9w", # Rangaraj Pandey
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UCn-w-H7-P1E-v8-l3yF8o4g", # Sun News
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UC-w1Tvu90iE3iU8e7cWzXWg", # News18
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UCX0vJ8H91b7d5q0_z2_WkRg"  # Kalaignar
+    "https://rsshub.app/youtube/channel/UCFzg1PqG9yXXSvcQ0F2-z4Q", # Polimer News
+    "https://rsshub.app/youtube/channel/UC1HqQxN1Xk_kO6xeqZzV_Nw", # Puthiya Thalaimurai
+    "https://rsshub.app/youtube/channel/UC1HqQxN1Xk_kO6xeqZzV_Nw", # Thanthi TV
+    "https://rsshub.app/youtube/channel/UC_zEjiN-K9V2OnaW5wI4oJg", # Chanakyaa
+    "https://rsshub.app/youtube/channel/UClX6M-hDrc_4v5q4jB5uU9w", # Rangaraj Pandey
+    "https://rsshub.app/youtube/channel/UCn-w-H7-P1E-v8-l3yF8o4g", # Sun News
+    "https://rsshub.app/youtube/channel/UC-w1Tvu90iE3iU8e7cWzXWg", # News18
+    "https://rsshub.app/youtube/channel/UCX0vJ8H91b7d5q0_z2_WkRg"  # Kalaignar
 ]
+
 
 # 🚀 AGGRESSIVE KEYWORD FILTER
 POLITICAL_KEYWORDS = [
