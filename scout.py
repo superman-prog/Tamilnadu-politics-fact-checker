@@ -7,25 +7,24 @@ import feedparser
 from groq import Groq
 from google import genai
 from google.genai import types
-from youtube_transcript_api import YouTubeTranscriptApi
 
 # --- CONFIGURATION & API KEYS ---
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GEMINI_KEYS_STRING = os.environ.get("GEMINI_KEYS_STRING")
 
-# 🚀 RESTORED: The Ultimate Tamil Political News Matrix
+# 🚀 TARGET FEEDS
 TARGET_FEEDS = [
     "https://www.youtube.com/feeds/videos.xml?channel_id=UCFzg1PqG9yXXSvcQ0F2-z4Q", # Polimer News
     "https://www.youtube.com/feeds/videos.xml?user=PuthiyaThalaimuraiTV",            # Puthiya Thalaimurai
     "https://www.youtube.com/feeds/videos.xml?channel_id=UC1HqQxN1Xk_kO6xeqZzV_Nw", # Thanthi TV
     "https://www.youtube.com/feeds/videos.xml?channel_id=UC_zEjiN-K9V2OnaW5wI4oJg", # Chanakyaa
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UClX6M-hDrc_4v5q4jB5uU9w", # Rangaraj Pandey (7th Sense)
+    "https://www.youtube.com/feeds/videos.xml?channel_id=UClX6M-hDrc_4v5q4jB5uU9w", # Rangaraj Pandey
     "https://www.youtube.com/feeds/videos.xml?channel_id=UCn-w-H7-P1E-v8-l3yF8o4g", # Sun News
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UC-w1Tvu90iE3iU8e7cWzXWg", # News18 Tamil Nadu
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UCX0vJ8H91b7d5q0_z2_WkRg"  # Kalaignar News
+    "https://www.youtube.com/feeds/videos.xml?channel_id=UC-w1Tvu90iE3iU8e7cWzXWg", # News18
+    "https://www.youtube.com/feeds/videos.xml?channel_id=UCX0vJ8H91b7d5q0_z2_WkRg"  # Kalaignar
 ]
 
-# 🚀 RESTORED: Aggressive Keyword Filtering
+# 🚀 AGGRESSIVE KEYWORD FILTER
 POLITICAL_KEYWORDS = [
     "CM", "Vijay", "Stalin", "EPS", "Udhayanidhi", "Edappadi", "Seeman", 
     "Annamalai", "Thirumavalavan", "DMK", "ADMK", "AIADMK", "TVK", "NTK", 
@@ -42,11 +41,11 @@ Reply ONLY with YES or NO.
 
 LAYER_1_FORENSIC_PROMPT = """
 You are a headless, backend OSINT forensic engine. You do not have a chat interface. 
-You are analyzing a raw text transcript ripped directly from a Tamil Nadu political video.
+You are analyzing a political video directly from YouTube.
 
 STRICT DIRECTIVES:
-1. NEVER ask the user to provide a link, upload a file, or give an attachment.
-2. If the transcript is empty or looks like garbage data, output EXACTLY: "INSUFFICIENT_DATA".
+1. NEVER ask the user to provide a link, upload a file, or give an attachment. You already have the video data.
+2. If the video contains no spoken words, is completely unrelated to politics, or cannot be analyzed, output EXACTLY: "INSUFFICIENT_DATA".
 3. If valid, you MUST structure the report exactly in the order below. DO NOT deviate.
 
 REPORT STRUCTURE:
@@ -67,31 +66,12 @@ LAYER_2_EDITOR_PROMPT = """
 You are the final editor. Your ONLY job is to ensure the text uses professional Markdown formatting, fix any broken structures, and verify that the "🚨 FLAGGED CONTESTED CLAIMS" section is at the absolute top of the report. Remove any AI conversational filler (like "Here is the report"). Output ONLY the final markdown text.
 """
 
-def extract_video_id(url):
-    """Extracts the raw YouTube Video ID."""
-    match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11}).*", url)
-    return match.group(1) if match else None
-
-def fetch_transcript(video_url):
-    """Rips the transcript directly to bypass Google's 8-hour free tier video processing limits."""
-    video_id = extract_video_id(video_url)
-    if not video_id:
-        return None
-    try:
-        # Pulls Tamil first, falls back to English auto-translates if needed
-        transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['ta', 'en'])
-        full_text = " ".join([t['text'] for t in transcript_list])
-        return full_text
-    except Exception:
-        return None
-
 def run_scout():
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 🛰️ Booting Heavy Scavenger Scout Engine...")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 🛰️ Booting Heavy Scavenger Scout Engine (Native Vision Mode)...")
 
     try:
         groq_client = Groq(api_key=GROQ_API_KEY)
         gemini_keys = [k.strip() for k in GEMINI_KEYS_STRING.split(",") if k.strip()]
-        # Initializing the client with the first load-balanced key
         gemini_client = genai.Client(api_key=gemini_keys[0]) 
     except Exception as e:
         print(f"❌ Core API initialization failed: {e}")
@@ -105,7 +85,6 @@ def run_scout():
     else:
         processed_db = []
 
-    # Gather all videos from feeds
     all_entries = []
     for feed_url in TARGET_FEEDS:
         parsed_feed = feedparser.parse(feed_url)
@@ -119,11 +98,9 @@ def run_scout():
         title = entry.title
         url = entry.link
 
-        # 🚀 RESTORED: Keyword Hard-Filter (Saves API calls by matching known entities first)
         title_upper = title.upper()
         keyword_hit = any(kw.upper() in title_upper for kw in POLITICAL_KEYWORDS)
 
-        # PHASE 1: Quick Radar Scan (Using 8B for massive token allowance)
         if not keyword_hit:
             try:
                 radar_res = groq_client.chat.completions.create(
@@ -144,22 +121,16 @@ def run_scout():
 
         print(f"\n🎯 Target Locked: {title}")
 
-        # TRANSCRIPT RIPPER
-        transcript_text = fetch_transcript(url)
-        if not transcript_text or len(transcript_text) < 50:
-            print(f"⚠️ Skipping: No closed captions available for extraction.")
-            processed_db.append(video_id)
-            continue
-
-        # PHASE 2 - LAYER 1: Deep Forensic Analysis (Gemini 2.5 Flash GA)
+        # 🚀 PHASE 2 - LAYER 1: Deep Forensic Analysis (Gemini 2.5 Flash Native Video)
         try:
             forensic_response = gemini_client.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=[
                     types.Part.from_text(text=LAYER_1_FORENSIC_PROMPT),
-                    types.Part.from_text(text=f"Title: {title}\nTranscript Data:\n{transcript_text}")
+                    types.Part.from_text(text=f"Title: {title}\nAnalyze this video directly:"),
+                    types.Part.from_uri(file_uri=url, mime_type="video/mp4") # Native Ingestion 
                 ],
-                config=types.GenerateContentConfig(temperature=0.1) # Extreme low temp to prevent hallucinations
+                config=types.GenerateContentConfig(temperature=0.1)
             )
             raw_report = forensic_response.text.strip()
             
@@ -168,12 +139,12 @@ def run_scout():
                 processed_db.append(video_id)
                 continue
                 
-            print("✅ Layer 1 processing resolved. Contested claims placed at the top.")
+            print("✅ Layer 1 processing resolved natively. Contested claims placed at the top.")
         except Exception as e:
             print(f"❌ Layer 1 Failure: {e}")
             continue
 
-        # PHASE 2 - LAYER 2: Editorial Clean-up (Groq 8B - High Token Ceiling)
+        # PHASE 2 - LAYER 2: Editorial Clean-up (Groq 8B)
         try:
             editor_res = groq_client.chat.completions.create(
                 model="llama-3.1-8b-instant",
@@ -189,7 +160,6 @@ def run_scout():
             print(f"⚠️ Layer 2 validation bypass ({e}). Using baseline report.")
             final_report = raw_report
 
-        # SAVE REPORT
         safe_title = re.sub(r'[\\/*?:"<>|]', "", title)[:50]
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         filename = f"reports/{timestamp}_{safe_title.replace(' ', '_')}.md"
@@ -208,11 +178,9 @@ def run_scout():
         
         processed_db.append(video_id)
         
-        # Save DB sequentially to prevent data loss on crash
         with open(db_path, "w") as f:
             json.dump(processed_db, f)
 
-        # Organic pacing
         time.sleep(5)
 
     print("\n✅ Sweep Complete. Database updated.")
