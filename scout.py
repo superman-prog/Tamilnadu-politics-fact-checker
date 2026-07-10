@@ -1,274 +1,222 @@
-"""
-Scavenger Scout - Open Source OSINT Fact-Checking Framework
-An automated pipeline that monitors regional RSS video feeds, screens for 
-political relevance via local LLMs, and processes multimodal video content 
-for automated fact-checking.
-
-License: MIT
-"""
-
 import os
-import sys
-import time
 import json
-import random
-import datetime
+import time
+import re
+from datetime import datetime
 import feedparser
 from groq import Groq
 from google import genai
 from google.genai import types
+from youtube_transcript_api import YouTubeTranscriptApi
 
-# =====================================================================
-# SYSTEM CONFIGURATION
-# =====================================================================
+# --- CONFIGURATION & API KEYS ---
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+GEMINI_KEYS_STRING = os.environ.get("GEMINI_KEYS_STRING")
 
-TARGET_CHANNELS = [
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UCmyKnNRH0wH-r8I-ceP-dsg", # Puthiya Thalaimurai
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UC-JFyL0zDFOsPMpuWu39rPA", # Thanthi TV
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UC8Z-VjXBtDJTvq6aqkIskPg", # Polimer News
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UC3sBClkAe3U88g699C2gVpA", # News18 TN
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UC76P_GZsn8D4stV6T-qX9OQ", # Sun News
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UClA17VpOfGqOWhZ8gWhI4Xg", # TVK Official
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UC38z3fT9RO4yugLJoCZLygw", # Behindwoods O2
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UCoOu4D7foJWfKvcDLxqrF2Q", # Chanakyaa
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UCsavukkumedianetwork",     # Savukku Media Network
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UCt3YmAt8OQyE0s1gqL6qW_Q", # Vikatan TV
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UCuJshcPrI8V8gOdBgNsk3wQ", # News7 Tamil
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UCb0f_X_6vRlhGzAsEwM0X3Q"  # Saattai
+# 🚀 RESTORED: The Ultimate Tamil Political News Matrix
+TARGET_FEEDS = [
+    "https://www.youtube.com/feeds/videos.xml?channel_id=UCFzg1PqG9yXXSvcQ0F2-z4Q", # Polimer News
+    "https://www.youtube.com/feeds/videos.xml?user=PuthiyaThalaimuraiTV",            # Puthiya Thalaimurai
+    "https://www.youtube.com/feeds/videos.xml?channel_id=UC1HqQxN1Xk_kO6xeqZzV_Nw", # Thanthi TV
+    "https://www.youtube.com/feeds/videos.xml?channel_id=UC_zEjiN-K9V2OnaW5wI4oJg", # Chanakyaa
+    "https://www.youtube.com/feeds/videos.xml?channel_id=UClX6M-hDrc_4v5q4jB5uU9w", # Rangaraj Pandey (7th Sense)
+    "https://www.youtube.com/feeds/videos.xml?channel_id=UCn-w-H7-P1E-v8-l3yF8o4g", # Sun News
+    "https://www.youtube.com/feeds/videos.xml?channel_id=UC-w1Tvu90iE3iU8e7cWzXWg", # News18 Tamil Nadu
+    "https://www.youtube.com/feeds/videos.xml?channel_id=UCX0vJ8H91b7d5q0_z2_WkRg"  # Kalaignar News
 ]
 
-KEYWORDS = [
-    "Vijay", "Stalin", "Edappadi", "EPS", "Annamalai", "Seeman", 
-    "Thirumavalavan", "Mahendran", "Udhayanidhi", "Ramadoss",
-    "TVK", "DMK", "AIADMK", "BJP", "NTK", "VCK", "Congress", "PMK",
-    "CM", "Chief Minister", "Power Cut", "Current", "Minsaram", 
-    "Assembly", "Press Meet", "Interview", "Speech", "Live", 
-    "Protest", "Arrest", "Scandal", "Election", "Collector",
-    "Meeting", "Conference", "Govt", "Welfare", "Scheme", "Budget",
-    "Cabinet", "Ordinance", "GO", "TASMAC", "Cauvery", "NEET",
-    "Bypoll", "By-election", "Manifesto", "Alliance", "Front"
+# 🚀 RESTORED: Aggressive Keyword Filtering
+POLITICAL_KEYWORDS = [
+    "CM", "Vijay", "Stalin", "EPS", "Udhayanidhi", "Edappadi", "Seeman", 
+    "Annamalai", "Thirumavalavan", "DMK", "ADMK", "AIADMK", "TVK", "NTK", 
+    "BJP", "VCK", "Congress", "Assembly", "Election", "Karur", "Police"
 ]
 
-DATABASE_FILE = "database.json"
-REPORTS_DIR = "reports"
-FEED_SCAN_LIMIT = 6             
-MIN_FEED_DELAY = 1.0           
-MAX_FEED_DELAY = 3.0
+# --- THE HEAVY PROMPTS ---
 
-# Jitter boundaries for organic API pacing
-MIN_PROCESS_JITTER = 15
-MAX_PROCESS_JITTER = 38
-
-# =====================================================================
-# SYSTEM PROMPTS
-# =====================================================================
-
-SCOUT_PROMPT = """
-You are a rapid-filter AI analyst. Is this YouTube title related to Tamil Nadu politics, government policies, leadership meetings, public administrative updates, press conferences, or community issues?
-Answer ONLY with the word "YES" or "NO". Do not include any explanations or punctuation.
+PHASE_1_PROMPT = """
+You are a hypersensitive political radar for Tamil Nadu in July 2026. 
+Is this video title related to Tamil Nadu politics, elections, political leaders, or government controversies?
+Reply ONLY with YES or NO.
 """
 
-HEAVY_PROMPT = """
-Analyze the attached video track and act as an unbiased political fact-checker.
+LAYER_1_FORENSIC_PROMPT = """
+You are a headless, backend OSINT forensic engine. You do not have a chat interface. 
+You are analyzing a raw text transcript ripped directly from a Tamil Nadu political video.
 
-FORMAT YOUR RESPONSE EXACTLY AS FOLLOWS:
+STRICT DIRECTIVES:
+1. NEVER ask the user to provide a link, upload a file, or give an attachment.
+2. If the transcript is empty or looks like garbage data, output EXACTLY: "INSUFFICIENT_DATA".
+3. If valid, you MUST structure the report exactly in the order below. DO NOT deviate.
 
-### 🚨 FLAGGED CONTESTED CLAIMS (SUMMARY)
-[List only statements from the video that are FALSE, MISLEADING, or UNVERIFIED.]
-* **[Speaker Name]**: "[Quote translated to English]"
-  * **Verdict**: [FALSE / MISLEADING / UNVERIFIED]
-  * **Analysis**: [Reasoned paragraph explaining real-world metrics, cross-references, and context.]
-  * **Source**: [Specific public records or official announcements]
+REPORT STRUCTURE:
+
+## 🚨 FLAGGED CONTESTED CLAIMS (SUMMARY)
+[Put the most explosive, contested, or factually dubious claims HERE AT THE VERY TOP. For each claim, provide:]
+* **[Speaker Name]**: "Quote or paraphrase of the claim."
+  * **Verdict**: [TRUE / MISLEADING / FALSE / PURE OPINION]
+  * **Analysis**: [Your objective political analysis and context of why it is flagged, referencing current TN political dynamics.]
 
 ---
 
-### 📜 COMPLETE DIALOGUE TRANSCRIPT
-[Provide the chronological dialogue sequence. Translate all spoken lines to English.]
-[Speaker Name]: [English translated dialogue line]
+## 📜 COMPLETE DIALOGUE TRANSCRIPT & SUMMARY
+[Provide a chronological, highly detailed breakdown of the entire conversation/speech. Translate heavy Tamil political rhetoric into clear English. Identify who is speaking and what their core arguments are.]
 """
 
-AUDITOR_PROMPT = """
-You are the Chief Editorial Auditor. Review the political fact-check report below. 
-1. Clarify overly complex political jargon or ambiguous metrics.
-2. Provide a 'Clear-English Distillation' bullet point for contradictory statements.
-3. Keep the original structure intact, but output a refined, clear version.
+LAYER_2_EDITOR_PROMPT = """
+You are the final editor. Your ONLY job is to ensure the text uses professional Markdown formatting, fix any broken structures, and verify that the "🚨 FLAGGED CONTESTED CLAIMS" section is at the absolute top of the report. Remove any AI conversational filler (like "Here is the report"). Output ONLY the final markdown text.
 """
 
-# =====================================================================
-# UTILITIES
-# =====================================================================
+def extract_video_id(url):
+    """Extracts the raw YouTube Video ID."""
+    match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11}).*", url)
+    return match.group(1) if match else None
 
-def load_db():
-    if not os.path.exists(DATABASE_FILE):
-        return {"date": str(datetime.date.today()), "api_calls_today": 0, "backlog": [], "cooled_keys": {}}
-    with open(DATABASE_FILE, "r") as f:
-        return json.load(f)
-
-def save_db(db):
-    with open(DATABASE_FILE, "w") as f:
-        json.dump(db, f, indent=4)
-
-# =====================================================================
-# MAIN PIPELINE
-# =====================================================================
+def fetch_transcript(video_url):
+    """Rips the transcript directly to bypass Google's 8-hour free tier video processing limits."""
+    video_id = extract_video_id(video_url)
+    if not video_id:
+        return None
+    try:
+        # Pulls Tamil first, falls back to English auto-translates if needed
+        transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['ta', 'en'])
+        full_text = " ".join([t['text'] for t in transcript_list])
+        return full_text
+    except Exception:
+        return None
 
 def run_scout():
-    print("🚀 Initializing Scavenger Scout Pipeline...")
-    db = load_db()
-    today_str = str(datetime.date.today())
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 🛰️ Booting Heavy Scavenger Scout Engine...")
 
-    # Daily reset
-    if db.get("date") != today_str:
-        db["date"] = today_str
-        db["api_calls_today"] = 0
-        db["cooled_keys"] = {}
+    try:
+        groq_client = Groq(api_key=GROQ_API_KEY)
+        gemini_keys = [k.strip() for k in GEMINI_KEYS_STRING.split(",") if k.strip()]
+        # Initializing the client with the first load-balanced key
+        gemini_client = genai.Client(api_key=gemini_keys[0]) 
+    except Exception as e:
+        print(f"❌ Core API initialization failed: {e}")
+        return
 
-    # Abstracted Single-String Key Loader (Load Balancer)
-    raw_keys_string = os.environ.get("GEMINI_KEYS_STRING", "")
-    active_keys = [k.strip() for k in raw_keys_string.split(",") if k.strip()]
-    groq_key = os.environ.get("GROQ_API_KEY")
+    os.makedirs("reports", exist_ok=True)
+    db_path = "database.json"
+    if os.path.exists(db_path):
+        with open(db_path, "r") as f:
+            processed_db = json.load(f)
+    else:
+        processed_db = []
 
-    if not active_keys or not groq_key:
-        print("❌ CRITICAL ERROR: API key strings are missing in environment.")
-        sys.exit(1)
+    # Gather all videos from feeds
+    all_entries = []
+    for feed_url in TARGET_FEEDS:
+        parsed_feed = feedparser.parse(feed_url)
+        all_entries.extend(parsed_feed.entries)
 
-    scout_client = Groq(api_key=groq_key)
-    new_videos = []
+    for entry in all_entries:
+        video_id = entry.id
+        if video_id in processed_db:
+            continue
 
-    # PHASE 1: FEED INGESTION & SCREENING
-    print("📡 Scanning RSS Feeds...")
-    for feed_url in TARGET_CHANNELS:
-        feed = feedparser.parse(feed_url)
-        for entry in feed.entries[:FEED_SCAN_LIMIT]:
-            title = entry.title
-            link = entry.link
+        title = entry.title
+        url = entry.link
 
-            if any(k.lower() in title.lower() for k in KEYWORDS) and link not in db.get("backlog", []):
-                time.sleep(random.uniform(MIN_FEED_DELAY, MAX_FEED_DELAY))
-                try:
-                    scout_response = scout_client.chat.completions.create(
-                        model="llama-3.1-8b-instant",
-                        messages=[
-                            {"role": "system", "content": SCOUT_PROMPT},
-                            {"role": "user", "content": f"Title: {title}"}
-                        ],
-                        temperature=0.1
-                    )
-                    if "YES" in scout_response.choices[0].message.content.strip().upper():
-                        print(f"🎯 Relevance confirmed: {title}")
-                        new_videos.append({"title": title, "url": link})
-                except Exception as e:
-                    print(f"⚠️ Screening error: {e}")
+        # 🚀 RESTORED: Keyword Hard-Filter (Saves API calls by matching known entities first)
+        title_upper = title.upper()
+        keyword_hit = any(kw.upper() in title_upper for kw in POLITICAL_KEYWORDS)
 
-    # PHASE 2: MULTIMODAL PROCESSING WITH DYNAMIC FAILOVER
-    current_key_index = 0
-
-    for video in new_videos:
-        success = False
-        
-        while not success and current_key_index < len(active_keys):
-            # Skip keys that are actively cooling down today
-            if str(current_key_index) in db.get("cooled_keys", {}):
-                current_key_index += 1
+        # PHASE 1: Quick Radar Scan (Using 8B for massive token allowance)
+        if not keyword_hit:
+            try:
+                radar_res = groq_client.chat.completions.create(
+                    model="llama-3.1-8b-instant",
+                    messages=[
+                        {"role": "system", "content": PHASE_1_PROMPT},
+                        {"role": "user", "content": title}
+                    ],
+                    temperature=0.0
+                )
+                is_relevant = radar_res.choices[0].message.content.strip().upper()
+                if "YES" not in is_relevant:
+                    processed_db.append(video_id)
+                    continue
+            except Exception as e:
+                print(f"⚠️ Phase 1 API Error on '{title}': {e}")
                 continue
 
-            selected_key = active_keys[current_key_index]
-            heavy_client = genai.Client(api_key=selected_key)
+        print(f"\n🎯 Target Locked: {title}")
 
-            print(f"🧠 Processing media via Key Slot [{current_key_index + 1}]: {video['title']}")
+        # TRANSCRIPT RIPPER
+        transcript_text = fetch_transcript(url)
+        if not transcript_text or len(transcript_text) < 50:
+            print(f"⚠️ Skipping: No closed captions available for extraction.")
+            processed_db.append(video_id)
+            continue
+
+        # PHASE 2 - LAYER 1: Deep Forensic Analysis (Gemini 2.5 Flash GA)
+        try:
+            forensic_response = gemini_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[
+                    types.Part.from_text(text=LAYER_1_FORENSIC_PROMPT),
+                    types.Part.from_text(text=f"Title: {title}\nTranscript Data:\n{transcript_text}")
+                ],
+                config=types.GenerateContentConfig(temperature=0.1) # Extreme low temp to prevent hallucinations
+            )
+            raw_report = forensic_response.text.strip()
             
-            try:
-                # True Random Jitter before processing
-                sleep_time = random.randint(MIN_PROCESS_JITTER, MAX_PROCESS_JITTER)
-                print(f"⏳ Pacing API call organically ({sleep_time}s)...")
-                time.sleep(sleep_time)
-
-                # LAYER 1: Deep Extraction (High-Volume Model)
-                gemini_response = heavy_client.models.generate_content(
-                    model="gemini-3.1-flash-lite", 
-                    contents=types.Content(parts=[
-                        types.Part(file_data=types.FileData(file_uri=video['url'])),
-                        types.Part(text=HEAVY_PROMPT)
-                    ]),
-                    config=types.GenerateContentConfig(temperature=0.10)
-                )
-                raw_report = gemini_response.text
-                print("✅ Layer 1 resolved. Routing to Editor...")
-
-                # LAYER 2: Refinement
-                try:
-                    auditor_response = scout_client.chat.completions.create(
-                        model="llama-3.3-70b-versatile",
-                        messages=[
-                            {"role": "system", "content": AUDITOR_PROMPT},
-                            {"role": "user", "content": f"Original Report Data:\n{raw_report}"}
-                        ],
-                        temperature=0.2
-                    )
-                    final_report = auditor_response.choices[0].message.content
-                    print("🔥 Layer 2 refinement applied.")
-                except Exception as audit_err:
-                    print(f"⚠️ Editor bypass ({audit_err}). Using baseline report.")
-                    final_report = raw_report
-
-                # SAVE REPORT
-                os.makedirs(REPORTS_DIR, exist_ok=True)
-                timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                safe_title = "".join([c for c in video['title'] if c.isalpha() or c.isdigit() or c == ' ']).rstrip()
-                filename = f"{REPORTS_DIR}/{timestamp}_{safe_title[:30].replace(' ', '_')}.md"
-
-                report_content = (
-                    f"# 🛰️ Grounded Report: {video['title']}\n"
-                    f"**Source Video**: {video['url']}\n\n"
-                    f"> *This forensic analysis was automated by Scavenger Scout.* \n"
-                    f"> *Join the project: **https://github.com/superman-prog/Tamilnadu-politics-fact-checker***\n\n"
-                    f"---\n\n"
-                    f"{final_report}"
-                )
-
-                with open(filename, "w", encoding="utf-8") as f:
-                    f.write(report_content)
-
-                if "backlog" not in db:
-                    db["backlog"] = []
-                db["backlog"].append(video['url'])
-                db["api_calls_today"] += 1
-                success = True # Break the while loop and move to the next video
-
-            except Exception as e:
-                err_msg = str(e)
-                print(f"⚠️ API Exception on Key Slot [{current_key_index + 1}]: {err_msg}")
+            if "INSUFFICIENT_DATA" in raw_report:
+                print(f"⚠️ Layer 1 rejected payload. Model detected insufficient spoken context.")
+                processed_db.append(video_id)
+                continue
                 
-                # Dynamic Failover for Rate Limits & Quotas
-                if any(x in err_msg for x in ["429", "Quota", "ResourceExhausted", "Forbidden", "403"]):
-                    print(f"🛑 Key Slot [{current_key_index + 1}] exhausted. Isolating and advancing to next key...")
-                    if "cooled_keys" not in db:
-                        db["cooled_keys"] = {}
-                    db["cooled_keys"][str(current_key_index)] = today_str
-                    current_key_index += 1
-                    
-                    # True Random Recovery Jitter
-                    recovery_time = random.randint(65, 115)
-                    print(f"⏳ Taking a randomized {recovery_time}-second breather before initializing the new key...")
-                    time.sleep(recovery_time)
-                    
-                # 500/503 Server Errors (Retry the same key)
-                elif any(x in err_msg for x in ["500", "503", "Internal Server Error", "Service Unavailable"]):
-                    print("🌩️ Google server unavailable. Retrying the same key in 30s...")
-                    time.sleep(30)
-                    
-                # Broken Links
-                elif any(x in err_msg for x in ["404", "Not Found", "VideoUnavailable"]):
-                    print("🗑️ Source video missing. Skipping to next news item.")
-                    break
-                    
-                else:
-                    print("❌ Unknown error. Dropping bad target string link.")
-                    break
+            print("✅ Layer 1 processing resolved. Contested claims placed at the top.")
+        except Exception as e:
+            print(f"❌ Layer 1 Failure: {e}")
+            continue
 
-    save_db(db)
-    print("🏁 Pipeline execution complete. Systems returning to low-power state.")
+        # PHASE 2 - LAYER 2: Editorial Clean-up (Groq 8B - High Token Ceiling)
+        try:
+            editor_res = groq_client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=[
+                    {"role": "system", "content": LAYER_2_EDITOR_PROMPT},
+                    {"role": "user", "content": raw_report}
+                ],
+                temperature=0.1
+            )
+            final_report = editor_res.choices[0].message.content.strip()
+            print("🔥 Layer 2 structural refinement applied.")
+        except Exception as e:
+            print(f"⚠️ Layer 2 validation bypass ({e}). Using baseline report.")
+            final_report = raw_report
+
+        # SAVE REPORT
+        safe_title = re.sub(r'[\\/*?:"<>|]', "", title)[:50]
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        filename = f"reports/{timestamp}_{safe_title.replace(' ', '_')}.md"
+
+        report_content = (
+            f"# 🛰️ Grounded Report: {title}\n"
+            f"**Source Video**: {url}\n\n"
+            f"> *Automated OSINT Engine via Scavenger Scout*\n"
+            f"> *Project Repo: https://github.com/superman-prog/Tamilnadu-politics-fact-checker*\n\n"
+            f"---\n\n"
+            f"{final_report}"
+        )
+
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(report_content)
+        
+        processed_db.append(video_id)
+        
+        # Save DB sequentially to prevent data loss on crash
+        with open(db_path, "w") as f:
+            json.dump(processed_db, f)
+
+        # Organic pacing
+        time.sleep(5)
+
+    print("\n✅ Sweep Complete. Database updated.")
 
 if __name__ == "__main__":
     run_scout()
-                
+    
