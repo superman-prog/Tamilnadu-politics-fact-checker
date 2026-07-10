@@ -1,0 +1,51 @@
+name: Scout Debug Test Pipeline
+
+# This allows you to trigger the test manually via a button in the UI
+on:
+  workflow_dispatch: 
+
+jobs:
+  diagnostic-run:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Runtime Core Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install groq google-genai feedparser
+
+    - name: 🚨 Nuclear Database Reset
+      run: |
+        echo "[]" > database.json
+        echo "Database forced to empty array at runtime. Size:"
+        ls -lh database.json
+
+    - name: 📡 Network Firewall Diagnostic
+      run: |
+        echo "Testing connection to YouTube RSS..."
+        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://www.youtube.com/feeds/videos.xml?channel_id=UCFzg1PqG9yXXSvcQ0F2-z4Q")
+        echo "YouTube Connection Status: $HTTP_STATUS"
+        
+        if [ "$HTTP_STATUS" -ne 200 ]; then
+          echo "========================================================="
+          echo "🚨 CRITICAL: YouTube is blocking this runner's IP (Status $HTTP_STATUS)!"
+          echo "This is why feedparser is returning 0 videos in 3 seconds."
+          echo "========================================================="
+        else
+          echo "✅ Network is clear. YouTube is accepting connections."
+        fi
+
+    - name: Run Scavenger Scout (Diagnostic Sandbox)
+      env:
+        GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        GEMINI_KEYS_STRING: ${{ secrets.GEMINI_KEYS_STRING }}
+      run: python scout.py
+
