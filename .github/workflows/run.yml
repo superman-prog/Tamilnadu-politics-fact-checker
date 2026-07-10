@@ -16,7 +16,7 @@ jobs:
     - name: Set Up Python Environment
       uses: actions/setup-python@v5
       with:
-        python-python-version: '3.11'
+        python-version: '3.11' # Fixed the typo here to remove the GitHub Actions warning
         cache: 'pip'
 
     - name: Install Runtime Core Dependencies
@@ -39,11 +39,11 @@ jobs:
         GEMINI_KEY_10: ${{ secrets.GEMINI_KEY_10 }}
       run: python scout.py
 
-    - name: Commit and Push Generated Forensic Reports
+    - name: Commit and Push Grounded Reports
       run: |
-        git config --local user.email "actions@github.com"
-        git config --local user.name "GitHub Actions Automated Pipeline"
-        git add reports/ database.json || true
-        git commit -m "Automated Forensic Fact-Check Update [Skip CI]" -a || true
-        git push origin main || true
+        git config --global user.name "Scavenger Scout Bot"
+        git config --global user.email "actions@github.com"
+        git add reports/ database.json
+        # Only commit if there are actual changes to prevent workflow crashes
+        git diff --quiet && git diff --staged --quiet || (git commit -m "🛰️ Scout Engine: Added new grounded forensic reports" && git push)
         
