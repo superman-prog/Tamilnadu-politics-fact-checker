@@ -1,0 +1,4 @@
+feedparser
+groq
+google-genai
+
