@@ -102,7 +102,7 @@ def run_scout():
         try:
             uploads_playlist_id = "UU" + channel_id[2:] 
             
-            url = "https://www.googleapis.com/content/youtube/v3/playlistItems"
+            url = "https://www.googleapis.com/youtube/v3/playlistItems"
             params = {
                 "part": "snippet",
                 "playlistId": uploads_playlist_id,
