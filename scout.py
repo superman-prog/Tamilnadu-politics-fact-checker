@@ -13,15 +13,15 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GEMINI_KEYS_STRING = os.environ.get("GEMINI_KEYS_STRING")
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
 
-# 📡 The clean, official Channel IDs for your targets
+# 📡 The exact Channel IDs matched to your new links
 CHANNEL_IDS = [
     "UCFzg1PqG9yXXSvcQ0F2-z4Q", # Polimer News
     "UC1HqQxN1Xk_kO6xeqZzV_Nw", # Thanthi TV
     "UC_zEjiN-K9V2OnaW5wI4oJg", # Chanakyaa
-    "UClX6M-hDrc_4v5q4jB5uU9w", # Rangaraj Pandey
+    "UCi7ClV3M3R6_ngP9gKshfeg", # BehindwoodsTV
     "UCn-w-H7-P1E-v8-l3yF8o4g", # Sun News
-    "UC-w1Tvu90iE3iU8e7cWzXWg", # News18
-    "UCX0vJ8H91b7d5q0_z2_WkRg"  # Kalaignar
+    "UC-w1Tvu90iE3iU8e7cWzXWg", # News18 Tamil Nadu
+    "UCX0vJ8H91b7d5q0_z2_WkRg"  # Kalaignar TV News
 ]
 
 # 🚀 AGGRESSIVE KEYWORD FILTER
@@ -32,7 +32,6 @@ POLITICAL_KEYWORDS = [
 ]
 
 # --- THE HEAVY PROMPTS ---
-
 PHASE_1_PROMPT = """
 You are a hypersensitive political radar for Tamil Nadu in July 2026. 
 Is this video title related to Tamil Nadu politics, elections, political leaders, or government controversies?
@@ -73,7 +72,7 @@ class VideoEntry:
         self.link = f"https://www.youtube.com/watch?v={video_id}"
 
 def run_scout():
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 🛰️ Booting Heavy Scavenger Scout Engine (Native Vision Mode with YouTube Data API v3)...")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 🛰️ Booting Heavy Scavenger Scout Engine (Native Vision Mode)...")
 
     if not YOUTUBE_API_KEY:
         print("❌ YouTube API key is missing. Check your environment setup.")
@@ -96,18 +95,18 @@ def run_scout():
         processed_db = []
 
     all_entries = []
-    print("📡 Querying YouTube Data API v3 Upload Channels...")
+    print("📡 Querying API for Upload Playlists...")
 
     for channel_id in CHANNEL_IDS:
         try:
-            uploads_playlist_id = "UU" + channel_id[2:] 
+            # Replaces the second character 'C' with 'U' to target the Uploads playlist safely
+            uploads_playlist_id = channel_id[0] + "U" + channel_id[2:]
             
-            # 🚀 FIXED: Pointing directly to the official Google API endpoint
             url = "https://www.googleapis.com/youtube/v3/playlistItems"
             params = {
                 "part": "snippet",
                 "playlistId": uploads_playlist_id,
-                "maxResults": "10",
+                "maxResults": "5",
                 "key": YOUTUBE_API_KEY
             }
             
@@ -119,11 +118,13 @@ def run_scout():
                     video_id = snippet["resourceId"]["videoId"]
                     title = snippet["title"]
                     all_entries.append(VideoEntry(video_id, title))
+                print(f"✅ Loaded items for playlist: {uploads_playlist_id}")
             else:
-                print(f"⚠️ Could not fetch items for channel {channel_id}. Check API Quota/Key limits.")
+                error_msg = response.get("error", {}).get("message", "Unknown Error")
+                print(f"⚠️ Could not pull playlist {uploads_playlist_id}: {error_msg}")
                 
         except Exception as e:
-            print(f"❌ Failed to query channel data via API for {channel_id}: {e}")
+            print(f"❌ Connection failure handling channel {channel_id}: {e}")
 
     for entry in all_entries:
         video_id = entry.id
@@ -222,4 +223,4 @@ def run_scout():
 
 if __name__ == "__main__":
     run_scout()
-    
+        
