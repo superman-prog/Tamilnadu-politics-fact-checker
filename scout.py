@@ -13,15 +13,15 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GEMINI_KEYS_STRING = os.environ.get("GEMINI_KEYS_STRING")
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
 
-# 📡 The exact Channel IDs matched to your new links
-CHANNEL_IDS = [
-    "UCFzg1PqG9yXXSvcQ0F2-z4Q", # Polimer News
-    "UC1HqQxN1Xk_kO6xeqZzV_Nw", # Thanthi TV
-    "UC_zEjiN-K9V2OnaW5wI4oJg", # Chanakyaa
-    "UCi7ClV3M3R6_ngP9gKshfeg", # BehindwoodsTV
-    "UCn-w-H7-P1E-v8-l3yF8o4g", # Sun News
-    "UC-w1Tvu90iE3iU8e7cWzXWg", # News18 Tamil Nadu
-    "UCX0vJ8H91b7d5q0_z2_WkRg"  # Kalaignar TV News
+# 📡 Robust approach: Using official handles instead of error-prone, hardcoded IDs
+CHANNEL_HANDLES = [
+    "PolimerNews",
+    "thanthitv",
+    "ChanakyaaTV",
+    "Behindwoodstv",
+    "Sunnewstamil",
+    "News18Tamilnadu",
+    "KalaignarTVNews"
 ]
 
 # 🚀 AGGRESSIVE KEYWORD FILTER
@@ -71,8 +71,26 @@ class VideoEntry:
         self.title = title
         self.link = f"https://www.youtube.com/watch?v={video_id}"
 
+def get_uploads_playlist_from_handle(handle, api_key):
+    """Resolves the verified channel ID and returns its true system Uploads Playlist ID"""
+    try:
+        url = "https://www.googleapis.com/youtube/v3/channels"
+        params = {
+            "part": "contentDetails",
+            "forHandle": handle,
+            "key": api_key
+        }
+        response = requests.get(url, params=params).json()
+        
+        if "items" in response and response["items"]:
+            # Pulls the absolute true system playlist container directly
+            return response["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
+    except Exception as e:
+        print(f"⚠️ Internal handle tracking failed for @{handle}: {e}")
+    return None
+
 def run_scout():
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 🛰️ Booting Heavy Scavenger Scout Engine (Native Vision Mode)...")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 🛰️ Booting Heavy Scavenger Scout Engine (Dynamic Handle Processing Mode)...")
 
     if not YOUTUBE_API_KEY:
         print("❌ YouTube API key is missing. Check your environment setup.")
@@ -95,13 +113,16 @@ def run_scout():
         processed_db = []
 
     all_entries = []
-    print("📡 Querying API for Upload Playlists...")
+    print("📡 Dynamically tracking target handles...")
 
-    for channel_id in CHANNEL_IDS:
-        try:
-            # Replaces the second character 'C' with 'U' to target the Uploads playlist safely
-            uploads_playlist_id = channel_id[0] + "U" + channel_id[2:]
+    for handle in CHANNEL_HANDLES:
+        uploads_playlist_id = get_uploads_playlist_from_handle(handle, YOUTUBE_API_KEY)
+        
+        if not uploads_playlist_id:
+            print(f"⚠️ Skipping handle @{handle}: Could not resolve system Uploads Playlist.")
+            continue
             
+        try:
             url = "https://www.googleapis.com/youtube/v3/playlistItems"
             params = {
                 "part": "snippet",
@@ -118,13 +139,13 @@ def run_scout():
                     video_id = snippet["resourceId"]["videoId"]
                     title = snippet["title"]
                     all_entries.append(VideoEntry(video_id, title))
-                print(f"✅ Loaded items for playlist: {uploads_playlist_id}")
+                print(f"✅ Successfully loaded latest feeds for: @{handle}")
             else:
                 error_msg = response.get("error", {}).get("message", "Unknown Error")
-                print(f"⚠️ Could not pull playlist {uploads_playlist_id}: {error_msg}")
+                print(f"⚠️ Could not pull items for @{handle} via playlist {uploads_playlist_id}: {error_msg}")
                 
         except Exception as e:
-            print(f"❌ Connection failure handling channel {channel_id}: {e}")
+            print(f"❌ Connection failure handling handle @{handle}: {e}")
 
     for entry in all_entries:
         video_id = entry.id
@@ -223,4 +244,4 @@ def run_scout():
 
 if __name__ == "__main__":
     run_scout()
-        
+                    
