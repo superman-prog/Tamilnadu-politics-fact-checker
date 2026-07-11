@@ -15,7 +15,7 @@ We built the core engine, but the vision for **Scavenger Scout** is much bigger.
 
 # 🛰️ Scavenger Scout
 
-An automated political fact-checking engine designed to monitor regional broadcast networks and independent digital media platforms. The pipeline aggregates fresh media uploads via RSS feeds, filters entries for political or administrative relevance using Groq (**Llama 3.1**), and executes a deep, dual-layer adversarial analysis on the video track using Google (**Gemini 3.5 Flash**) and Groq (**Llama 3.3-70B**).
+An automated political fact-checking engine designed to monitor regional broadcast networks and independent digital media platforms. The pipeline aggregates fresh media uploads via RSS feeds, filters entries for political or administrative relevance using Groq (**Llama 3.1**), and executes a deep, adversarial analysis on the video track using Google (**Gemini 3.5 Flash**).
 
 The framework is entirely serverless, stateless, and optimized to run natively within a GitHub Actions runner environment on a customizable periodic schedule.
 
