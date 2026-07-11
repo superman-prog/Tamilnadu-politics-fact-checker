@@ -3,7 +3,7 @@ import json
 import time
 import re
 from datetime import datetime
-import feedparser
+import requests
 from groq import Groq
 from google import genai
 from google.genai import types
@@ -11,18 +11,18 @@ from google.genai import types
 # --- CONFIGURATION & API KEYS ---
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GEMINI_KEYS_STRING = os.environ.get("GEMINI_KEYS_STRING")
-YOUTUBE_API_KEY = os.environ.gey("YOUTUBE_API_KEY")
-# 🚀 TARGET FEEDS
-TARGET_FEEDS = [
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UCFzg1PqG9yXXSvcQ0F2-z4Q", # Polimer News
-    "https://www.youtube.com/feeds/videos.xml?user=PuthiyaThalaimuraiTV",            # Puthiya Thalaimurai
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UC1HqQxN1Xk_kO6xeqZzV_Nw", # Thanthi TV
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UC_zEjiN-K9V2OnaW5wI4oJg", # Chanakyaa
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UClX6M-hDrc_4v5q4jB5uU9w", # Rangaraj Pandey
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UCn-w-H7-P1E-v8-l3yF8o4g", # Sun News
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UC-w1Tvu90iE3iU8e7cWzXWg", # News18
-    "https://www.youtube.com/feeds/videos.xml?channel_id=UCX0vJ8H91b7d5q0_z2_WkRg"  # 
+YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
 
+# 📡 The clean, official Channel IDs for your targets
+CHANNEL_IDS = [
+    "UCFzg1PqG9yXXSvcQ0F2-z4Q", # Polimer News
+    "UC1HqQxN1Xk_kO6xeqZzV_Nw", # Thanthi TV
+    "UC_zEjiN-K9V2OnaW5wI4oJg", # Chanakyaa
+    "UClX6M-hDrc_4v5q4jB5uU9w", # Rangaraj Pandey
+    "UCn-w-H7-P1E-v8-l3yF8o4g", # Sun News
+    "UC-w1Tvu90iE3iU8e7cWzXWg", # News18
+    "UCX0vJ8H91b7d5q0_z2_WkRg"  # Kalaignar
+]
 
 # 🚀 AGGRESSIVE KEYWORD FILTER
 POLITICAL_KEYWORDS = [
@@ -66,8 +66,18 @@ LAYER_2_EDITOR_PROMPT = """
 You are the final editor. Your ONLY job is to ensure the text uses professional Markdown formatting, fix any broken structures, and verify that the "🚨 FLAGGED CONTESTED CLAIMS" section is at the absolute top of the report. Remove any AI conversational filler (like "Here is the report"). Output ONLY the final markdown text.
 """
 
+class VideoEntry:
+    def __init__(self, video_id, title):
+        self.id = video_id
+        self.title = title
+        self.link = f"https://www.youtube.com/watch?v={video_id}"
+
 def run_scout():
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 🛰️ Booting Heavy Scavenger Scout Engine (Native Vision Mode)...")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 🛰️ Booting Heavy Scavenger Scout Engine (Native Vision Mode with YouTube Data API v3)...")
+
+    if not YOUTUBE_API_KEY:
+        print("❌ YouTube API key is missing. Check your environment setup.")
+        return
 
     try:
         groq_client = Groq(api_key=GROQ_API_KEY)
@@ -86,9 +96,33 @@ def run_scout():
         processed_db = []
 
     all_entries = []
-    for feed_url in TARGET_FEEDS:
-        parsed_feed = feedparser.parse(feed_url)
-        all_entries.extend(parsed_feed.entries)
+    print("📡 Querying YouTube Data API v3 Upload Channels...")
+
+    for channel_id in CHANNEL_IDS:
+        try:
+            uploads_playlist_id = "UU" + channel_id[2:] 
+            
+            url = "https://www.googleapis.com/content/youtube/v3/playlistItems"
+            params = {
+                "part": "snippet",
+                "playlistId": uploads_playlist_id,
+                "maxResults": "10",
+                "key": YOUTUBE_API_KEY
+            }
+            
+            response = requests.get(url, params=params).json()
+            
+            if "items" in response:
+                for item in response["items"]:
+                    snippet = item["snippet"]
+                    video_id = snippet["resourceId"]["videoId"]
+                    title = snippet["title"]
+                    all_entries.append(VideoEntry(video_id, title))
+            else:
+                print(f"⚠️ Could not fetch items for channel {channel_id}. Check API Quota/Key limits.")
+                
+        except Exception as e:
+            print(f"❌ Failed to query channel data via API for {channel_id}: {e}")
 
     for entry in all_entries:
         video_id = entry.id
@@ -128,7 +162,7 @@ def run_scout():
                 contents=[
                     types.Part.from_text(text=LAYER_1_FORENSIC_PROMPT),
                     types.Part.from_text(text=f"Title: {title}\nAnalyze this video directly:"),
-                    types.Part.from_uri(file_uri=url, mime_type="video/mp4") # Native Ingestion 
+                    types.Part.from_uri(file_uri=url, mime_type="video/mp4") 
                 ],
                 config=types.GenerateContentConfig(temperature=0.1)
             )
@@ -187,4 +221,4 @@ def run_scout():
 
 if __name__ == "__main__":
     run_scout()
-    
+              
