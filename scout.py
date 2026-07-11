@@ -102,6 +102,7 @@ def run_scout():
         try:
             uploads_playlist_id = "UU" + channel_id[2:] 
             
+            # 🚀 FIXED: Pointing directly to the official Google API endpoint
             url = "https://www.googleapis.com/youtube/v3/playlistItems"
             params = {
                 "part": "snippet",
@@ -221,4 +222,4 @@ def run_scout():
 
 if __name__ == "__main__":
     run_scout()
-              
+    
