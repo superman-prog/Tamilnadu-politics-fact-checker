@@ -60,7 +60,6 @@ class VideoEntry:
         self.link = f"https://www.youtube.com/watch?v={video_id}"
 
 class GeminiRotator:
-    """Manages pool distribution for up to 10 distinct API keys and handles automatic failover models."""
     def __init__(self, keys_string):
         self.keys = [k.strip() for k in keys_string.split(",") if k.strip()]
         self.current_index = 0
@@ -164,6 +163,7 @@ def run_scout():
         raw_report = None
         payload_context = f"Title Context: {title}\nDescription Context: {desc}"
         
+        # Sequentially loop through each key slot available in the pool
         for key_attempt in range(len(gemini_pool.keys)):
             model_target = "gemini-flash-latest"
             try:
@@ -177,13 +177,13 @@ def run_scout():
                     config=types.GenerateContentConfig(temperature=0.1)
                 )
                 raw_report = res.text.strip()
-                break 
+                break # Success! Break out of the key loop completely.
             except APIError as e:
                 if e.code == 429:
-                    print(f"⏳ Quota limit (429). Shifting API keys and pausing for 10s...")
-                    time.sleep(10)
+                    print(f"⏳ Quota limit (429) hit on slot {gemini_pool.current_index}. Rotating key and pausing...")
                     gemini_pool.next_key()
-                    continue 
+                    time.sleep(10)
+                    # No continue statement here; loop increments cleanly to try the next slot index
                 else:
                     print(f"❌ Model {model_target} failed: {e.message}")
                     break
@@ -231,4 +231,4 @@ def run_scout():
 
 if __name__ == "__main__":
     run_scout()
-        
+                
