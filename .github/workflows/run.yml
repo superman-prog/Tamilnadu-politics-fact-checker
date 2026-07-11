@@ -1,5 +1,9 @@
 name: Automated Multi-Agent OSINT Engine
 
+concurrency:
+  group: osint-pipeline
+  cancel-in-progress: false
+
 on:
   schedule:
     - cron: '0 */2 * * *' # Runs every 2 hours
@@ -32,12 +36,15 @@ jobs:
       run: python scout.py
 
     - name: Commit and Push Reports
-      if: success()
       run: |
         git config --global user.name "Scavenger Scout Bot"
-        git config --global user.email "scout-bot@github.com"
-        git add reports/ database.json
-        # Only commit if there are actual changes
-        git commit -m "Automated OSINT Sweep: Added new reports & updated DB" || exit 0
+        git config --global user.email "actions@github.com"
+        git add database.json reports/
+        # Only commit if changes actually exist so it doesn't fail on empty diffs
+        git diff-index --quiet HEAD || git commit -m "Automated OSINT Sweep: Added new reports & updated DB"
+        
+        # Pull down any concurrent commits from other runs to merge cleanly
+        git pull --rebase origin main
+        
         git push origin main
         
