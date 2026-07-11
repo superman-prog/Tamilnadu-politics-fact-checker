@@ -7,13 +7,14 @@ import requests
 from groq import Groq
 from google import genai
 from google.genai import types
+from google.genai.errors import APIError
 
 # --- CONFIGURATION & API KEYS ---
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GEMINI_KEYS_STRING = os.environ.get("GEMINI_KEYS_STRING")
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
 
-# 📡 Robust approach: Using official handles instead of error-prone, hardcoded IDs
+# 📡 Clean, verified YouTube Handles from your links
 CHANNEL_HANDLES = [
     "PolimerNews",
     "thanthitv",
@@ -72,7 +73,7 @@ class VideoEntry:
         self.link = f"https://www.youtube.com/watch?v={video_id}"
 
 def get_uploads_playlist_from_handle(handle, api_key):
-    """Resolves the verified channel ID and returns its true system Uploads Playlist ID"""
+    """Asks Google for the exact system playlist container using the channel handle"""
     try:
         url = "https://www.googleapis.com/youtube/v3/channels"
         params = {
@@ -83,14 +84,15 @@ def get_uploads_playlist_from_handle(handle, api_key):
         response = requests.get(url, params=params).json()
         
         if "items" in response and response["items"]:
-            # Pulls the absolute true system playlist container directly
             return response["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
+        else:
+            print(f"⚠️ Could not resolve handle @{handle}. Response: {response}")
     except Exception as e:
-        print(f"⚠️ Internal handle tracking failed for @{handle}: {e}")
+        print(f"⚠️ API handle lookup failed for @{handle}: {e}")
     return None
 
 def run_scout():
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 🛰️ Booting Heavy Scavenger Scout Engine (Dynamic Handle Processing Mode)...")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 🛰️ Booting Heavy Scavenger Scout Engine (Clean Handles Mode)...")
 
     if not YOUTUBE_API_KEY:
         print("❌ YouTube API key is missing. Check your environment setup.")
@@ -113,13 +115,13 @@ def run_scout():
         processed_db = []
 
     all_entries = []
-    print("📡 Dynamically tracking target handles...")
+    print("📡 Resolving system upload streams via official API handles...")
 
     for handle in CHANNEL_HANDLES:
         uploads_playlist_id = get_uploads_playlist_from_handle(handle, YOUTUBE_API_KEY)
         
         if not uploads_playlist_id:
-            print(f"⚠️ Skipping handle @{handle}: Could not resolve system Uploads Playlist.")
+            print(f"⚠️ Skipping handle @{handle}: System ID missing.")
             continue
             
         try:
@@ -127,7 +129,7 @@ def run_scout():
             params = {
                 "part": "snippet",
                 "playlistId": uploads_playlist_id,
-                "maxResults": "5",
+                "maxResults": "3", # Reduced to grab just the top new entries to save quota
                 "key": YOUTUBE_API_KEY
             }
             
@@ -139,13 +141,13 @@ def run_scout():
                     video_id = snippet["resourceId"]["videoId"]
                     title = snippet["title"]
                     all_entries.append(VideoEntry(video_id, title))
-                print(f"✅ Successfully loaded latest feeds for: @{handle}")
+                print(f"✅ Loaded live feed items for: @{handle}")
             else:
                 error_msg = response.get("error", {}).get("message", "Unknown Error")
-                print(f"⚠️ Could not pull items for @{handle} via playlist {uploads_playlist_id}: {error_msg}")
+                print(f"⚠️ Could not fetch stream items for @{handle}: {error_msg}")
                 
         except Exception as e:
-            print(f"❌ Connection failure handling handle @{handle}: {e}")
+            print(f"❌ Network issue tracking data for @{handle}: {e}")
 
     for entry in all_entries:
         video_id = entry.id
@@ -178,28 +180,43 @@ def run_scout():
 
         print(f"\n🎯 Target Locked: {title}")
 
-        # 🚀 PHASE 2 - LAYER 1: Deep Forensic Analysis (Gemini 2.5 Flash Native Video)
-        try:
-            forensic_response = gemini_client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=[
-                    types.Part.from_text(text=LAYER_1_FORENSIC_PROMPT),
-                    types.Part.from_text(text=f"Title: {title}\nAnalyze this video directly:"),
-                    types.Part.from_uri(file_uri=url, mime_type="video/mp4") 
-                ],
-                config=types.GenerateContentConfig(temperature=0.1)
-            )
-            raw_report = forensic_response.text.strip()
-            
-            if "INSUFFICIENT_DATA" in raw_report:
-                print(f"⚠️ Layer 1 rejected payload. Model detected insufficient spoken context.")
-                processed_db.append(video_id)
-                continue
-                
-            print("✅ Layer 1 processing resolved natively. Contested claims placed at the top.")
-        except Exception as e:
-            print(f"❌ Layer 1 Failure: {e}")
+        # 🚀 PHASE 2 - LAYER 1: Deep Forensic Analysis with Quota Handling
+        raw_report = None
+        for attempt in range(3):
+            try:
+                forensic_response = gemini_client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=[
+                        types.Part.from_text(text=LAYER_1_FORENSIC_PROMPT),
+                        types.Part.from_text(text=f"Title: {title}\nAnalyze this video directly:"),
+                        types.Part.from_uri(file_uri=url, mime_type="video/mp4") 
+                    ],
+                    config=types.GenerateContentConfig(temperature=0.1)
+                )
+                raw_report = forensic_response.text.strip()
+                break
+            except APIError as e:
+                if e.code == 429:
+                    print(f"⏳ Gemini Rate Limit triggered. Cooling off for 45 seconds...")
+                    time.sleep(45)
+                    continue
+                else:
+                    print(f"❌ Layer 1 API Error: {e}")
+                    break
+            except Exception as e:
+                print(f"❌ Layer 1 Failure: {e}")
+                break
+
+        if not raw_report:
+            print(f"⚠️ Skipping video entry due to backend processing faults.")
             continue
+
+        if "INSUFFICIENT_DATA" in raw_report:
+            print(f"⚠️ Layer 1 rejected payload. Insufficient spoken context detected.")
+            processed_db.append(video_id)
+            continue
+            
+        print("✅ Layer 1 processing resolved cleanly.")
 
         # PHASE 2 - LAYER 2: Editorial Clean-up (Groq 8B)
         try:
@@ -238,10 +255,11 @@ def run_scout():
         with open(db_path, "w") as f:
             json.dump(processed_db, f)
 
-        time.sleep(5)
+        # Enforce spacing between video loops to respect free tier rate limits
+        time.sleep(20)
 
     print("\n✅ Sweep Complete. Database updated.")
 
 if __name__ == "__main__":
     run_scout()
-                    
+        
