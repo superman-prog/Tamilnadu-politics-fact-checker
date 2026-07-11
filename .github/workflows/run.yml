@@ -21,27 +21,14 @@ jobs:
     - name: Install Runtime Core Dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install groq google-genai feedparser
-
-    # 🚀 THE NEW SHIELD: This checks if YouTube is blocking the server IP
-    - name: Verify YouTube Feed Clearance
-      id: network_check
-      run: |
-        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://www.youtube.com/feeds/videos.xml?channel_id=UCFzg1PqG9yXXSvcQ0F2-z4Q")
-        echo "📡 Active IP Channel Status: $HTTP_STATUS"
-        
-        if [ "$HTTP_STATUS" -eq 404 ] || [ "$HTTP_STATUS" -eq 429 ]; then
-          echo "🚨 YouTube has blacklisted this host IP. Force-failing container to cycle runners..."
-          exit 1
-        fi
-        echo "✅ Connection clear. Ready for execution."
+        pip install groq google-genai requests
 
     - name: Run Scavenger Scout Engine
       if: success()
-    env:
+      env:
         GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         GEMINI_KEYS_STRING: ${{ secrets.GEMINI_KEYS_STRING }}
-        YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }} # 🚀 Add this!
+        YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
       run: python scout.py
 
     - name: Commit and Push Reports
