@@ -32,22 +32,24 @@ Reply ONLY with YES or NO.
 """
 
 LAYER_1_FORENSIC_PROMPT = """
-You are a headless, backend OSINT forensic engine analyzing text data extracted from a YouTube broadcast feed.
-Structure the final analytical brief exactly in the order below:
+You are a headless, backend OSINT forensic engine analyzing a political video directly from YouTube.
+Watch the video visual frames, process the audio track completely, and read the provided title context.
+
+STRICT DIRECTIVES:
+1. NEVER ask the user to provide a link, upload a file, or give an attachment.
+2. If the video contains no spoken words, is completely unrelated to politics, or cannot be analyzed, output EXACTLY: "INSUFFICIENT_DATA".
+3. You MUST structure the report exactly in the order below using Markdown. DO NOT deviate.
 
 ## 🚨 FLAGGED CONTESTED CLAIMS (SUMMARY)
-* **[Speaker Name / Context]**: "Core claims extracted from the news title and script summary."
+[Put the most explosive, contested, or factually dubious claims HERE AT THE VERY TOP. For each claim, provide:]
+* **[Speaker Name]**: "Quote or paraphrase of the claim."
   * **Verdict**: [TRUE / MISLEADING / FALSE / PURE OPINION]
-  * **Analysis**: Provide a scannable context of why it is flagged, referencing current TN political dynamics.
+  * **Analysis**: Your objective political analysis and context of why it is flagged, referencing current TN political dynamics.
 
 ---
 
 ## 📜 COMPLETE DIALOGUE TRANSCRIPT & SUMMARY
-Provide a highly detailed breakdown of the contextual narrative implied by this update. Identify the core focus and political arguments involved.
-"""
-
-LAYER_2_EDITOR_PROMPT = """
-You are the final editor. Your ONLY job is to ensure the text uses professional Markdown formatting, fix any broken structures, and verify that the "🚨 FLAGGED CONTESTED CLAIMS" section is at the absolute top of the report. Remove any conversational filler. Output ONLY the final markdown text.
+[Provide a chronological, highly detailed breakdown of the entire conversation/speech. Translate heavy Tamil political rhetoric into clear English. Identify who is speaking, track timestamps if possible, and outline their core arguments. DO NOT give a one-paragraph summary. Provide a literal, section-by-section or line-by-line breakdown of what is actually said in the video.]
 """
 
 class VideoEntry:
@@ -69,17 +71,16 @@ class GeminiRotator:
         if not self.keys:
             raise ValueError("No valid Gemini API keys parsed out of variable string context.")
         current_key = self.keys[self.current_index]
-        # Redacts key footprint securely in logs
-        masked_key = f"...{current_key[-4:]}" if len(current_key) > 4 else "???"
-        print(f"🔑 Initializing connection via Client Slot [{self.current_index}] (Key ending in {masked_key})")
+        masked = f"...{current_key[-4:]}" if len(current_key) > 4 else "???"
+        print(f"🔑 Initializing Client Slot [{self.current_index}] (Key ending in {masked})")
         self.client = genai.Client(api_key=current_key)
         
     def next_key(self):
         self.current_index = (self.current_index + 1) % len(self.keys)
-        print(f"🔄 Traffic constraint identified. Shifting load allocation to Client Slot [{self.current_index}]...")
+        print(f"🔄 Rotating to Client Slot [{self.current_index}]...")
         self.rotate_client()
 
-def get_uploads_playlist_from_handle(handle, api_key):
+def get_uploads_playlist(handle, api_key):
     try:
         url = "https://www.googleapis.com/youtube/v3/channels"
         params = {"part": "contentDetails", "forHandle": handle, "key": api_key}
@@ -91,7 +92,7 @@ def get_uploads_playlist_from_handle(handle, api_key):
     return None
 
 def run_scout():
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 🛰️ Booting Scavenger Scout Engine (Load-Balanced Quota Mode)...")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 🛰️ Booting Native Video OSINT Scavenger Engine...")
 
     if not YOUTUBE_API_KEY:
         print("❌ YouTube API key is missing.")
@@ -109,16 +110,16 @@ def run_scout():
     processed_db = json.load(open(db_path, "r")) if os.path.exists(db_path) else []
 
     all_entries = []
-    print("📡 Resolving system upload streams via official API handles...")
+    print("📡 Resolving system upload streams via handles...")
 
     for handle in CHANNEL_HANDLES:
-        uploads_playlist_id = get_uploads_playlist_from_handle(handle, YOUTUBE_API_KEY)
-        if not uploads_playlist_id:
+        uploads_playlist = get_uploads_playlist(handle, YOUTUBE_API_KEY)
+        if not uploads_playlist:
             continue
             
         try:
             url = "https://www.googleapis.com/youtube/v3/playlistItems"
-            params = {"part": "snippet", "playlistId": uploads_playlist_id, "maxResults": "3", "key": YOUTUBE_API_KEY}
+            params = {"part": "snippet", "playlistId": uploads_playlist, "maxResults": "3", "key": YOUTUBE_API_KEY}
             response = requests.get(url, params=params).json()
             
             if "items" in response:
@@ -134,84 +135,75 @@ def run_scout():
             print(f"❌ Network issue tracking data for @{handle}: {e}")
 
     for entry in all_entries:
-        video_id = entry.id
-        if video_id in processed_db:
+        if entry.id in processed_db:
             continue
 
         title = entry.title
         url = entry.link
-        description = entry.description
+        desc = entry.description
 
-        title_upper = title.upper()
-        keyword_hit = any(kw.upper() in title_upper for kw in POLITICAL_KEYWORDS)
+        keyword_hit = any(kw.upper() in title.upper() for kw in POLITICAL_KEYWORDS)
 
         if not keyword_hit:
             try:
-                radar_res = groq_client.chat.completions.create(
+                radar = groq_client.chat.completions.create(
                     model="llama-3.1-8b-instant",
                     messages=[{"role": "system", "content": PHASE_1_PROMPT}, {"role": "user", "content": title}],
                     temperature=0.0
                 )
-                if "YES" not in radar_res.choices[0].message.content.strip().upper():
-                    processed_db.append(video_id)
+                if "YES" not in radar.choices[0].message.content.strip().upper():
+                    processed_db.append(entry.id)
+                    with open(db_path, "w") as f: json.dump(processed_db, f)
                     continue
             except Exception as e:
-                print(f"⚠️ Phase 1 API Error on '{title}': {e}")
+                print(f"⚠️ Phase 1 API Error: {e}")
                 continue
 
         print(f"\n🎯 Target Locked: {title}")
 
-        # 🚀 PHASE 2 - LAYER 1: Text Analysis with Client Pool Rotation & Model Cascading
         raw_report = None
-        payload_context = f"Title: {title}\nDescription Metadata: {description}\nSource Link: {url}"
+        payload_context = f"Title Context: {title}\nDescription Context: {desc}"
         
-        # We try across distinct API tokens inside our rotation loop structure
         for key_attempt in range(len(gemini_pool.keys)):
-            # Cascade models: try primary first, then fall back to high-capacity lite profile
-            for model_target in ["gemini-flash-latest", "gemini-3.1-flash-lite"]:
-                try:
-                    forensic_response = gemini_pool.client.models.generate_content(
-                        model=model_target,
-                        contents=[
-                            types.Part.from_text(text=LAYER_1_FORENSIC_PROMPT),
-                            types.Part.from_text(text=payload_context)
-                        ],
-                        config=types.GenerateContentConfig(temperature=0.1)
-                    )
-                    raw_report = forensic_response.text.strip()
-                    break # Success! Break out of model cascading loop
-                except APIError as e:
-                    if e.code == 429:
-                        print(f"⏳ Quota limit tripped on {model_target} using current slot. Forcing key index rotation...")
-                        gemini_pool.next_key()
-                        break # Break out of the current model loop to try the new key instead
-                    else:
-                        print(f"⚠️ Model {model_target} failed with code {e.code}. Checking cascade path...")
-                        continue # Try the next fallback model structure
-                except Exception as e:
-                    print(f"⚠️ Secondary pipeline glitch on {model_target}: {e}")
-                    continue
-            
-            if raw_report:
-                break # Success! Break out of the key rotation attempt loop
-
+            model_target = "gemini-flash-latest"
+            try:
+                res = gemini_pool.client.models.generate_content(
+                    model=model_target,
+                    contents=[
+                        types.Part.from_uri(file_uri=url, mime_type="video/mp4"),
+                        types.Part.from_text(text=LAYER_1_FORENSIC_PROMPT),
+                        types.Part.from_text(text=payload_context)
+                    ],
+                    config=types.GenerateContentConfig(temperature=0.1)
+                )
+                raw_report = res.text.strip()
+                break 
+            except APIError as e:
+                if e.code == 429:
+                    print(f"⏳ Quota limit (429). Shifting API keys and pausing for 10s...")
+                    time.sleep(10)
+                    gemini_pool.next_key()
+                    continue 
+                else:
+                    print(f"❌ Model {model_target} failed: {e.message}")
+                    break
+            except Exception as e:
+                print(f"⚠️ Pipeline anomaly: {e}")
+                break
+        
         if not raw_report:
-            print(f"❌ Layer 1 processing failure: Exhausted all key resources and model profiles. Skipping.")
+            print(f"❌ Exhausted resources for {title}. Marking as processed to prevent infinite loop.")
+            processed_db.append(entry.id)
+            with open(db_path, "w") as f: json.dump(processed_db, f)
             continue
 
-        print("✅ Layer 1 processing resolved cleanly.")
+        if "INSUFFICIENT_DATA" in raw_report:
+            print(f"⚠️ Insufficient spoken context detected.")
+            processed_db.append(entry.id)
+            with open(db_path, "w") as f: json.dump(processed_db, f)
+            continue
 
-        # PHASE 2 - LAYER 2: Editorial Clean-up via Groq
-        try:
-            editor_res = groq_client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=[{"role": "system", "content": LAYER_2_EDITOR_PROMPT}, {"role": "user", "content": raw_report}],
-                temperature=0.1
-            )
-            final_report = editor_res.choices[0].message.content.strip()
-            print("🔥 Layer 2 structural refinement applied.")
-        except Exception as e:
-            final_report = raw_report
+        print("✅ Gemini successfully extracted the transcript and claims.")
 
         safe_title = re.sub(r'[\\/*?:"<>|]', "", title)[:50]
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -223,21 +215,20 @@ def run_scout():
             f"> *Automated OSINT Engine via Scavenger Scout*\n"
             f"> *Project Repo: https://github.com/superman-prog/Tamilnadu-politics-fact-checker*\n\n"
             f"---\n\n"
-            f"{final_report}"
+            f"{raw_report}"
         )
 
         with open(filename, "w", encoding="utf-8") as f:
             f.write(report_content)
         
-        processed_db.append(video_id)
+        processed_db.append(entry.id)
         with open(db_path, "w") as f:
             json.dump(processed_db, f)
 
-        # Small 5s buffer to balance load across keys naturally
-        time.sleep(5)
+        time.sleep(20)
 
     print("\n✅ Sweep Complete. Database updated.")
 
 if __name__ == "__main__":
     run_scout()
-    
+        
