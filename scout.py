@@ -265,7 +265,7 @@ def prune_processed_db(db):
                 pruned[vid] = date_str
         except (ValueError, TypeError):
             pruned[vid] = date_str  
-return pruned
+        return pruned
 
 
 def save_processed_db(db):
