@@ -22,7 +22,6 @@ CHANNEL_HANDLES = [
     "Behindwoodstv", "Sunnewstamil", "News18Tamilnadu", "KalaignarTVNews"
 ]
 
-# Pull the top 3 highest-performing/trending videos per channel per run
 MAX_TRENDING_RESULTS = 3
 
 POLITICAL_KEYWORDS = [
@@ -88,44 +87,6 @@ EDITORIAL DIRECTIVES:
 4/ 📈 WHY THIS IS TRENDING: [1-2 sentences on why this video is currently farming massive clicks across Tamil Nadu networks]. #TamilNadu #TNPolitics
 """
 
-class VideoEntry:
-    def __init__(self, video_id, title, description, statistics=None):
-        self.id = video_id
-        self.title = title
-        self.description = description
-        self.link = f"https://www.youtube.com/watch?v={video_id}"
-        
-        # Parse metric values for high-reach scoring calculations
-        stats = statistics or {}
-        self.views = int(stats.get('viewCount', 0))
-        self.likes = int(stats.get('likeCount', 0))
-        self.comments = int(stats.get('commentCount', 0))
-        
-        # Dynamic Multiplier Formulation for engagement tracking
-        self.reach_score = self.views + (self.likes * 5) + (self.comments * 10)
-
-
-def get_channel_id(handle, api_key):
-    try:
-        url = "https://www.googleapis.com/youtube/v3/channels"
-        params = {"part": "id", "forHandle": handle, "key": api_key}
-        response = requests.get(url, params=params).json()
-        if "items" in response and response["items"]:
-            return response["items"][0]["id"]
-    except Exception as e:
-        print(f"⚠️ Channel ID resolution failed for @{handle}: {e}")
-    return None
-
-
-def extract_cluster_key(title):
-    """Normalizes titles to identify if multiple videos are talking about the exact same topic."""
-    clean = title.upper()
-    # 🚀 CRITICAL FIX: Properly escaped the regex pipe to prevent structural matching failures
-    clean = re.sub(r'\|.*|LIVE.*|🔴.*', '', clean)
-    words = re.findall(r'\b[A-Z0-9]{4,}\b', clean) 
-    return "_".join(words[:3]) if words else clean[:20]
-
-
 # ==========================================
 # 🚀 PRE-SCRAPE LAYER DEFINITION
 # ==========================================
@@ -144,11 +105,47 @@ def force_live_search(query_string):
         
         return " | ".join(cleaned_snippets) if cleaned_snippets else "No live snippets found."
     except Exception as e:
-        return f"Force-search layer failed: {e}
+        return f"Force-search layer failed: {e}"
 
+# ==========================================
+# CORE CLASSES AND HELPER FUNCTIONS
+# ==========================================
+class VideoEntry:
+    def __init__(self, video_id, title, description, statistics=None):
+        self.id = video_id
+        self.title = title
+        self.description = description
+        self.link = f"https://www.youtube.com/watch?v={video_id}"
+        
+        stats = statistics or {}
+        self.views = int(stats.get('viewCount', 0))
+        self.likes = int(stats.get('likeCount', 0))
+        self.comments = int(stats.get('commentCount', 0))
     
+        self.reach_score = self.views + (self.likes * 5) + (self.comments * 10)
+
+def get_channel_id(handle, api_key):
+    try:
+        url = "https://www.googleapis.com/youtube/v3/channels"
+        params = {"part": "id", "forHandle": handle, "key": api_key}
+        response = requests.get(url, params=params).json()
+        if "items" in response and response["items"]:
+            return response["items"][0]["id"]
+    except Exception as e:
+        print(f"⚠️ Channel ID resolution failed for @{handle}: {e}")
+    return None
+
+def extract_cluster_key(title):
+    clean = title.upper()
+    clean = re.sub(r'\|.*|LIVE.*|🔴.*', '', clean)
+    words = re.findall(r'\b[A-Z0-9]{4,}\b', clean) 
+    return "_".join(words[:3]) if words else clean[:20]
+
+# ==========================================
+# MAIN ORCHESTRATION ENGINE
+# ==========================================
 def run_scout():
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 🛰️ Booting Engagement-Ranked Swarm Engine...")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 🛰️ Booting Master Swarm Engine (Live Search Enabled)...")
 
     if not YOUTUBE_API_KEY or not GEMINI_KEYS_STRING:
         print("❌ Critical API keys are missing.")
@@ -176,9 +173,8 @@ def run_scout():
         processed_db = []
 
     raw_discovered_entries = []
-    print("📡 Harvesting trending arrays from source networks...")
-
-    # 🚀 CRITICAL FIX: Calculates exactly 48 hours ago to prevent parsing 10-year-old viral videos
+    print("📡 Harvesting trending arrays from source networks...
+          
     time_limit = (datetime.utcnow() - timedelta(hours=48)).isoformat(timespec='seconds') + "Z"
 
     for handle in CHANNEL_HANDLES:
@@ -204,7 +200,6 @@ def run_scout():
                 if not video_ids:
                     continue
                 
-                # 🚀 RE-HYDRATION LAYER: Fetch precise likes, views, and comments via video details endpoint
                 stats_url = "https://www.googleapis.com/youtube/v3/videos"
                 stats_params = {
                     "part": "snippet,statistics",
@@ -225,9 +220,7 @@ def run_scout():
         except Exception as e:
             print(f"❌ Failed processing metrics for @{handle}: {e}")
 
-    # --- Phase 1: Topic Clustering & Engagement Filter ---
     topic_clusters = {}
-    
     for entry in raw_discovered_entries:
         if entry.id in processed_db:
             continue
@@ -248,19 +241,16 @@ def run_scout():
                 print(f"⚠️ Phase 1 Radar Error for {entry.title}: {e}")
                 continue
 
-        # 🚀 CLUSTERING LOGIC: Group entries talking about the exact same structural topics
         cluster_key = extract_cluster_key(entry.title)
         if cluster_key not in topic_clusters:
             topic_clusters[cluster_key] = []
         topic_clusters[cluster_key].append(entry)
 
-    # For each cluster, select exclusively the video with the highest reach score
     targets_to_process = []
     for cluster_key, entries in topic_clusters.items():
         best_entry = max(entries, key=lambda x: x.reach_score)
         targets_to_process.append(best_entry)
         
-        # Silently log the lower-ranked duplicate video IDs so they aren't processed in future runs
         for entry in entries:
             if entry.id != best_entry.id:
                 processed_db.append(entry.id)
@@ -275,7 +265,7 @@ def run_scout():
     print(f"\n🎯 Deduplicated Targets Locked: {len(targets_to_process)}")
     print(f"🚀 Deploying Swarm Workers across {len(keys_list)} concurrent threads...\n")
 
-        def process_target(entry):
+    def process_target(entry):
         title = entry.title
         url = entry.link
         desc = entry.description
@@ -297,7 +287,6 @@ def run_scout():
         )
         
         raw_report = None
-    
         try:
             for attempt in range(3):
                 try:
@@ -314,7 +303,7 @@ def run_scout():
                         config=types.GenerateContentConfig(
                             temperature=0.1,
                             media_resolution=types.MediaResolution.MEDIA_RESOLUTION_LOW,
-                            # 🚀 UNLIMITED FREE REAL-TIME LOOKUPS: Native Server-Side Search Enabled
+                            # 🚀 DOUBLE REDUNDANCY: Keeps Native Grounding active alongside the force-fed data
                             tools=[types.Tool(google_search=types.GoogleSearch())]
                         )
                     )
@@ -383,4 +372,4 @@ def run_scout():
 
 if __name__ == "__main__":
     run_scout()
-            
+    
