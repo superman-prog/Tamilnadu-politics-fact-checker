@@ -6,8 +6,13 @@ concurrency:
 
 on:
   schedule:
-    - cron: '0 */2 * * *' # Runs every 2 hours
-  workflow_dispatch:      # Allows manual trigger
+    - cron: '0 */6 * * *' # Runs automatically every 6 hours
+  workflow_dispatch:      # 🚀 THIS ENABLES THE MANUAL LAYER
+    inputs:
+      manual_urls:
+        description: 'Pasted YouTube video links from the UI front-end'
+        required: false
+        default: ''
 
 jobs:
   execute-pipeline:
