@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>OSINT // Tamil Nadu Politics Fact-Checker — Command Deck</title>
+
+<!-- DEPENDENCIES -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+<script>
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        fontFamily: { sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"] },
+        colors: {
+          verdict: { true: "#10b981", warn: "#f59e0b", lie: "#ef4444" },
+          velocity: "#a855f7",
+        },
+        boxShadow: { glow: "0 0 24px -6px rgba(168,85,247,0.35)" },
+      },
+    },
+  };
+</script>
+
+<style>
+  html, body { height: 100%; -webkit-font-smoothing: antialiased; }
+  ::-webkit-scrollbar { width: 7px; height: 7px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+
+  /* Markdown Typography Polish */
+  .prose-osint { color: #d4d4d8; line-height: 1.6; font-size: 1rem; }
+  .prose-osint h1 { color:#fff; font-size:1.7rem; font-weight:800; margin:1.2rem 0 .6rem; }
+  .prose-osint h2 { color:#fafafa; font-size:1.3rem; font-weight:700; margin:1.4rem 0 .5rem; border-bottom:1px solid #27272a; padding-bottom:.3rem; }
+  .prose-osint h3 { color:#e4e4e7; font-size:1.1rem; font-weight:600; margin:1rem 0 .4rem; }
+  .prose-osint p { margin:.6rem 0; }
+  .prose-osint a { color:#a855f7; text-decoration:underline; text-underline-offset:3px; }
+  .prose-osint ul { list-style:disc; padding-left:1.2rem; margin:.6rem 0; }
+  .prose-osint hr { border-color:#27272a; margin:1.5rem 0; }
+
+  @keyframes riseIn { from { opacity:0; transform:translateY(6px);} to {opacity:1; transform:translateY(0);} }
+  .rise-in { animation: riseIn .3s ease both; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner { animation: spin .8s linear infinite; }
+  @keyframes fade { from{opacity:0} to{opacity:1} }
+  .fade-in { animation: fade .2s ease both; }
+</style>
+</head>
+
+<body class="bg-zinc-950 text-zinc-100 font-sans min-h-screen flex flex-col">
+
+<!-- HEADER -->
+<header class="sticky top-0 z-30 border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-md">
+  <div class="mx-auto max-w-[1600px] px-4 py-3 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-gradient-to-br from-velocity to-fuchsia-600 grid place-items-center shadow-glow shrink-0">
+        <span class="text-sm sm:text-lg">🛰️</span>
+      </div>
+      <div class="min-w-0">
+        <h1 class="text-sm sm:text-base font-bold tracking-tight truncate">Command Deck</h1>
+        <p class="text-[10px] sm:text-[11px] text-zinc-500 truncate">Fact-Checker Engine</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 shrink-0">
+      <button id="refreshBtn" class="hidden md:inline-flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 transition">⟳ Refresh</button>
+      <button data-open="ingestModal" class="inline-flex items-center gap-1.5 rounded-lg bg-velocity px-3 py-2 text-xs sm:text-sm font-semibold text-white shadow-glow hover:bg-fuchsia-500 transition">
+        🎯 <span class="hidden sm:inline">Ingest Video</span><span class="sm:hidden">Ingest</span>
+      </button>
+      <button data-open="settingsModal" class="inline-flex items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 h-8 w-8 sm:h-[38px] sm:w-[38px] text-zinc-300 hover:bg-zinc-800 transition">⚙️</button>
+    </div>
+  </div>
+</header>
+
+<!-- METRICS (Hidden on very small mobile screens to save space) -->
+<section class="hidden md:block mx-auto max-w-[1600px] w-full px-4 pt-5">
+  <div class="grid grid-cols-2 xl:grid-cols-4 gap-3">
+    <div class="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4"><p class="text-[10px] uppercase tracking-wider text-zinc-500">Reports Audited</p><div class="mt-1 text-2xl font-bold" id="kpiTotal">—</div></div>
+    <div class="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4"><p class="text-[10px] uppercase tracking-wider text-zinc-500">Integrity Rate</p><div class="mt-1 text-2xl font-bold text-verdict-true" id="kpiIntegrity">—</div></div>
+    <div class="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4"><p class="text-[10px] uppercase tracking-wider text-zinc-500">Highest Velocity</p><div class="mt-1 text-2xl font-bold text-velocity" id="kpiSpike">—</div></div>
+    <div class="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4"><p class="text-[10px] uppercase tracking-wider text-zinc-500">Most Flagged</p><div class="mt-1 text-xl font-bold text-verdict-lie truncate" id="kpiNetwork">—</div></div>
+  </div>
+</section>
+
+<!-- MAIN APP AREA -->
+<main class="mx-auto max-w-[1600px] w-full px-4 py-4 sm:py-5 flex-1 flex flex-col min-h-0">
+  <div class="flex-1 w-full flex flex-col lg:grid lg:grid-cols-[340px_1fr] xl:grid-cols-[400px_1fr] gap-4 min-h-0 relative">
+    
+    <!-- LEFT: FEED SECTION -->
+    <aside id="feedSection" class="w-full h-full rounded-xl border border-zinc-800 bg-zinc-900/40 flex flex-col overflow-hidden">
+      <div class="px-3 py-2 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/80">
+        <h2 class="text-xs font-semibold text-zinc-300">Latest Reports</h2>
+        <span id="feedCount" class="text-[10px] bg-zinc-800 px-2 py-0.5 rounded-full text-zinc-400">0</span>
+      </div>
+      <div class="p-2 border-b border-zinc-800">
+        <input id="searchInput" type="text" placeholder="Search titles..." class="w-full rounded-md bg-zinc-950 border border-zinc-800 px-3 py-1.5 text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-velocity" />
+      </div>
+      <div id="feedList" class="flex-1 overflow-y-auto p-2 space-y-1.5 pb-20 lg:pb-2"></div>
+    </aside>
+
+    <!-- RIGHT: READER SECTION -->
+    <section id="readerSection" class="hidden lg:flex w-full h-full rounded-xl border border-zinc-800 bg-zinc-900/40 flex-col overflow-hidden absolute inset-0 lg:relative z-10">
+      <!-- Mobile Back Button -->
+      <div class="lg:hidden border-b border-zinc-800 bg-zinc-950 p-2">
+        <button id="mobileBackBtn" class="flex items-center gap-2 text-sm text-zinc-400 hover:text-white bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-800 w-full">
+          ← Back to Feed
+        </button>
+      </div>
+
+      <div id="readerScroll" class="flex-1 overflow-y-auto p-0">
+        <div id="readerEmpty" class="h-full flex flex-col items-center justify-center p-8 text-center hidden lg:flex">
+          <div class="text-4xl mb-3">📰</div>
+          <h3 class="text-base font-semibold text-zinc-300">Select a report</h3>
+          <p class="text-xs text-zinc-500 max-w-[250px] mt-1">Tap any report from the feed to view the analysis.</p>
+        </div>
+        <article id="readerContent" class="hidden"></article>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<!-- MODALS -->
+<!-- INGEST MODAL -->
+<div id="ingestModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" data-close="ingestModal"></div>
+  <div class="relative w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 shadow-2xl rise-in flex flex-col max-h-full">
+    <div class="flex items-center justify-between p-4 border-b border-zinc-800">
+      <h3 class="font-semibold text-white flex items-center gap-2">🎯 Ingest Video</h3>
+      <button data-close="ingestModal" class="text-zinc-500 hover:text-white text-xl">×</button>
+    </div>
+    <div class="p-4 space-y-3 overflow-y-auto">
+      <div>
+        <label class="text-[10px] uppercase tracking-wider text-zinc-500">YouTube URL</label>
+        <input id="url1" type="url" placeholder="https://youtube.com/watch?v=..." class="mt-1 w-full rounded-md bg-zinc-950 border border-zinc-800 px-3 py-2 text-sm focus:ring-1 focus:ring-velocity" />
+      </div>
+      <div id="patHint" class="text-xs rounded-md px-3 py-2 border mt-2"></div>
+      <div id="ingestStatus" class="hidden rounded-md px-3 py-2 text-xs mt-2 border border-zinc-800 bg-zinc-950 text-zinc-400"></div>
+    </div>
+    <div class="p-4 border-t border-zinc-800 flex justify-end gap-2 shrink-0">
+      <button data-close="ingestModal" class="rounded-md border border-zinc-800 px-3 py-1.5 text-sm text-zinc-300">Cancel</button>
+      <button id="dispatchBtn" class="rounded-md bg-velocity px-3 py-1.5 text-sm font-semibold text-white hover:bg-fuchsia-500">Launch Swarm</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div id="settingsModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" data-close="settingsModal"></div>
+  <div class="relative w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 shadow-2xl rise-in flex flex-col max-h-full">
+    <div class="flex items-center justify-between p-4 border-b border-zinc-800">
+      <h3 class="font-semibold text-white flex items-center gap-2">⚙️ Configurations</h3>
+      <button data-close="settingsModal" class="text-zinc-500 hover:text-white text-xl">×</button>
+    </div>
+    <div class="p-4 space-y-4 overflow-y-auto">
+      <div>
+        <label class="text-[10px] uppercase tracking-wider text-zinc-500">Target Repository</label>
+        <input id="repoInput" type="text" placeholder="username/repo-name" class="mt-1 w-full rounded-md bg-zinc-950 border border-zinc-800 px-3 py-2 text-sm focus:ring-1 focus:ring-velocity" />
+        <p class="text-[10px] text-zinc-500 mt-1">e.g., superman-prog/Tamilnadu-politics-fact-checker</p>
+      </div>
+      <div>
+        <label class="text-[10px] uppercase tracking-wider text-zinc-500">GitHub PAT (Token)</label>
+        <div class="mt-1 flex gap-2">
+          <input id="patInput" type="password" placeholder="ghp_..." class="w-full rounded-md bg-zinc-950 border border-zinc-800 px-3 py-2 text-sm focus:ring-1 focus:ring-velocity" />
+          <button id="patReveal" class="rounded-md border border-zinc-800 px-3 bg-zinc-950 text-zinc-400">👁</button>
+        </div>
+        <p class="text-[10px] text-zinc-500 mt-1">Needed for private repos or manual dispatching.</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-[10px] uppercase tracking-wider text-zinc-500">Workflow File</label>
+          <input id="workflowInput" type="text" class="mt-1 w-full rounded-md bg-zinc-950 border border-zinc-800 px-3 py-2 text-sm focus:ring-1 focus:ring-velocity" />
+        </div>
+        <div>
+          <label class="text-[10px] uppercase tracking-wider text-zinc-500">Branch Ref</label>
+          <input id="refInput" type="text" class="mt-1 w-full rounded-md bg-zinc-950 border border-zinc-800 px-3 py-2 text-sm focus:ring-1 focus:ring-velocity" />
+        </div>
+      </div>
+    </div>
+    <div class="p-4 border-t border-zinc-800 flex justify-end gap-2 shrink-0">
+      <button data-close="settingsModal" class="rounded-md border border-zinc-800 px-3 py-1.5 text-sm text-zinc-300">Close</button>
+      <button id="saveSettingsBtn" class="rounded-md bg-verdict-true px-4 py-1.5 text-sm font-bold text-black">Save & Reload</button>
+    </div>
+  </div>
+</div>
+
+<div id="toastHost" class="fixed bottom-4 right-4 z-[60] space-y-2 w-[calc(100%-2rem)] sm:w-auto"></div>
+
+<!-- APP LOGIC -->
+<script>
+const LS = { pat: "osint_gh_pat", workflow: "osint_workflow_file", ref: "osint_dispatch_ref", repo: "osint_repo" };
+const API_ROOT = "https://api.github.com";
+let REPORTS = [];
+
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+const esc = (s="") => s.replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+
+function getRepo() {
+  const val = localStorage.getItem(LS.repo) || "superman-prog/Tamilnadu-politics-fact-checker";
+  const [owner, name] = val.split("/");
+  return { owner: owner || "superman-prog", name: name || "Tamilnadu-politics-fact-checker" };
+}
+
+function toast(msg, kind="info") {
+  const colors = { info:"border-zinc-700", ok:"border-verdict-true", warn:"border-verdict-warn", err:"border-verdict-lie" };
+  const el = document.createElement("div");
+  el.className = `fade-in rounded-md border ${colors[kind]||colors.info} bg-zinc-900 px-3 py-2.5 text-xs sm:text-sm text-zinc-100 shadow-xl w-full sm:max-w-xs ml-auto`;
+  el.textContent = msg;
+  $("#toastHost").appendChild(el);
+  setTimeout(() => { el.style.opacity="0"; setTimeout(()=>el.remove(),400); }, 3500);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  if (!localStorage.getItem(LS.workflow)) localStorage.setItem(LS.workflow, "run.yml");
+  if (!localStorage.getItem(LS.ref)) localStorage.setItem(LS.ref, "main");
+  if (!localStorage.getItem(LS.repo)) localStorage.setItem(LS.repo, "superman-prog/Tamilnadu-politics-fact-checker");
+  
+  syncSettingsUI();
+  setupEventListeners();
+  bootReportEngine();
+});
+
+function syncSettingsUI() {
+  $("#patInput").value = localStorage.getItem(LS.pat) || "";
+  $("#repoInput").value = localStorage.getItem(LS.repo) || "superman-prog/Tamilnadu-politics-fact-checker";
+  $("#workflowInput").value = localStorage.getItem(LS.workflow) || "run.yml";
+  $("#refInput").value = localStorage.getItem(LS.ref) || "main";
+  updatePatUIHint();
+}
+
+function updatePatUIHint() {
+  const pat = localStorage.getItem(LS.pat);
+  const hint = $("#patHint");
+  if (!pat) {
+    hint.className = "text-[10px] rounded-md px-2 py-1.5 border border-verdict-warn bg-verdict-warn/10 text-verdict-warn";
+    hint.textContent = "⚠️ No PAT saved. Required if repo is private or to launch swarm.";
+  } else {
+    hint.className = "text-[10px] rounded-md px-2 py-1.5 border border-verdict-true bg-verdict-true/10 text-verdict-true";
+    hint.textContent = "🔒 PAT secured locally.";
+  }
+}
+
+async function bootReportEngine() {
+  const feed = $("#feedList");
+  const repo = getRepo();
+  feed.innerHTML = `<div class="p-2"><div class="h-16 bg-zinc-800 animate-pulse rounded-lg"></div></div>`;
+  
+  try {
+    const headers = {};
+    const pat = localStorage.getItem(LS.pat);
+    if (pat) headers["Authorization"] = `token ${pat}`;
+    
+    const res = await fetch(`${API_ROOT}/repos/${repo.owner}/${repo.name}/contents/reports`, { headers });
+    
+    if (res.status === 404) {
+      throw new Error(`Folder '/reports' not found in ${repo.owner}/${repo.name}. Has the script run yet?`);
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}: Check repo name or PAT permissions.`);
+    
+    const files = await res.json();
+    const mdFiles = files.filter(f => f.name.endsWith(".md")).reverse();
+    
+    REPORTS = mdFiles.map(file => {
+      const matches = file.name.match(/^(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})_(.*)\.md$/);
+      let timestamp = "Unknown Date";
+      let displayTitle = file.name.replace(".md", "").replace(/_/g, " ");
+      if (matches) { timestamp = `${matches[1]} ${matches[2]}:${matches[3]}`; displayTitle = matches[5].replace(/_/g, " "); }
+      return { name: file.name, path: file.path, title: displayTitle, timestamp, rawUrl: file.download_url, body: null, youtubeId: null };
+    });
+
+    $("#feedCount").textContent = REPORTS.length;
+    buildMetricsDashboard();
+    renderFeedList(REPORTS);
+  } catch (err) {
+    feed.innerHTML = `<div class="p-3 bg-verdict-lie/10 border border-verdict-lie/30 rounded-lg m-2"><p class="text-xs text-verdict-lie font-semibold mb-1">❌ Connection Failed</p><p class="text-[10px] text-zinc-400">${err.message}</p></div>`;
+  }
+}
+
+function renderFeedList(items) {
+  const feed = $("#feedList");
+  if (items.length === 0) {
+    feed.innerHTML = `<p class="text-xs text-zinc-500 text-center py-8">No reports found.</p>`;
+    return;
+  }
+  feed.innerHTML = items.map((report, idx) => `
+    <div onclick="selectReport(${idx})" class="p-3 rounded-lg border border-zinc-800 bg-zinc-900 hover:border-zinc-600 transition cursor-pointer flex flex-col gap-1 rise-in">
+      <div class="flex justify-between items-center">
+        <span class="text-[9px] font-mono text-zinc-500">${esc(report.timestamp)}</span>
+      </div>
+      <h4 class="text-xs font-semibold text-zinc-200 line-clamp-2 mt-0.5">${esc(report.title)}</h4>
+    </div>`).join("");
+}
+
+async function selectReport(index) {
+  const report = REPORTS[index];
+  
+  // Mobile View Toggling
+  $("#feedSection").classList.add("hidden", "lg:flex");
+  $("#readerSection").classList.remove("hidden");
+  
+  $("#readerEmpty").classList.add("hidden");
+  const container = $("#readerContent");
+  container.classList.remove("hidden");
+  container.innerHTML = `<div class="p-8 text-center"><div class="spinner inline-block h-5 w-5 border-2 border-t-transparent border-velocity rounded-full"></div></div>`;
+
+  try {
+    if (!report.body) {
+      const headers = {};
+      const pat = localStorage.getItem(LS.pat);
+      if (pat) headers["Authorization"] = `token ${pat}`; // Need PAT for private raw downloads
+
+      const res = await fetch(report.rawUrl, { headers });
+      if (!res.ok) throw new Error("Fetch failed.");
+      report.body = await res.text();
+      
+      const ytMatch = report.body.match(/(?:v=|\/)([a-zA-Z0-9_-]{11})/);
+      if (ytMatch) report.youtubeId = ytMatch[1];
+    }
+
+    const htmlPayload = marked.parse(report.body);
+    container.innerHTML = `
+      <div class="p-4 sm:p-6 space-y-4 sm:space-y-6 rise-in pb-12">
+        <div class="space-y-1.5">
+          <p class="text-[10px] sm:text-xs font-mono text-zinc-500">${esc(report.timestamp)}</p>
+          <h1 class="text-lg sm:text-2xl font-bold tracking-tight text-white leading-snug">${esc(report.title)}</h1>
+        </div>
+        ${report.youtubeId ? `
+        <div class="aspect-video w-full rounded-xl overflow-hidden border border-zinc-800 bg-black">
+          <iframe class="w-full h-full" src="https://www.youtube.com/embed/${report.youtubeId}" frameborder="0" allowfullscreen></iframe>
+        </div>` : ``}
+        <div class="prose-osint">${htmlPayload}</div>
+      </div>`;
+    $("#readerScroll").scrollTop = 0;
+  } catch (err) {
+    container.innerHTML = `<p class="text-xs text-verdict-lie p-6 text-center">💥 File conversion crash: ${err.message}</p>`;
+  }
+}
+
+async function triggerWorkflowDispatch() {
+  const pat = localStorage.getItem(LS.pat);
+  const repo = getRepo();
+  const workflowFile = localStorage.getItem(LS.workflow) || "run.yml";
+  const branchRef = localStorage.getItem(LS.ref) || "main";
+
+  if (!pat) { toast("Auth missing: Save PAT in settings.", "err"); return; }
+  const url1 = $("#url1").value.trim();
+  if (!url1) { toast("Provide a URL.", "warn"); return; }
+
+  const dispatchBtn = $("#dispatchBtn");
+  const statusEl = $("#ingestStatus");
+  dispatchBtn.disabled = true; dispatchBtn.textContent = "Sending...";
+  statusEl.className = "rounded-md px-3 py-2 text-[10px] border border-zinc-800 bg-zinc-950 text-zinc-400 mt-2";
+  statusEl.classList.remove("hidden");
+  statusEl.textContent = "Signaling GitHub API...";
+
+  try {
+    const res = await fetch(`${API_ROOT}/repos/${repo.owner}/${repo.name}/actions/workflows/${workflowFile}/dispatches`, {
+      method: "POST",
+      headers: { "Authorization": `token ${pat}`, "Accept": "application/vnd.github.v3+json", "Content-Type": "application/json" },
+      body: JSON.stringify({ ref: branchRef, inputs: { manual_urls: url1 } })
+    });
+    
+    if (res.status === 204) {
+      statusEl.className = "rounded-md px-3 py-2 text-[10px] border border-verdict-true bg-verdict-true/10 text-verdict-true mt-2";
+      statusEl.textContent = "🚀 Swarm Workers launched!";
+      toa
