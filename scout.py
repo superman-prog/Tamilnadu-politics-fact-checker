@@ -35,8 +35,6 @@ from google import genai
 from google.genai import types
 from google.genai.errors import APIError
 
-# Optional: load a local .env file for Termux/local testing. GitHub Actions
-# already injects real env vars, so this is a no-op there either way.
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -59,15 +57,7 @@ log = logging.getLogger("scavenger_scout")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GEMINI_KEYS_STRING = os.environ.get("GEMINI_KEYS_STRING")
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
-
-# Model IDs are env-overridable because both providers rotate/deprecate models
-# often. llama-3.1-8b-instant (the old default here) was announced deprecated
-# by Groq on 2026-06-17 for free/developer tier usage — openai/gpt-oss-20b is
-# Groq's own recommended replacement for the cheap pre-filter stage.
 GROQ_FILTER_MODEL = os.environ.get("GROQ_FILTER_MODEL", "openai/gpt-oss-20b")
-# gemini-flash-latest is Google's rolling alias (currently gemini-3.5-flash).
-# Google documents it as an experimental, more rate-limited alias, so it's
-# kept overridable in case you'd rather pin a stable dated model.
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
 
 DRY_RUN = os.environ.get("DRY_RUN", "false").strip().lower() in ("1", "true", "yes")
@@ -164,8 +154,6 @@ def force_live_search(query_string):
     can safely fold the result straight into the model's prompt.
     """
     try:
-        # Small jitter so concurrent worker threads don't all hit DuckDuckGo
-        # in the same instant and trip a rate limit / soft block.
         time.sleep(random.uniform(0.3, 1.2))
 
         url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(query_string)}"
@@ -179,9 +167,6 @@ def force_live_search(query_string):
         return " | ".join(cleaned_snippets) if cleaned_snippets else "No live snippets found."
     except Exception as e:
         log.warning(f"⚠️ force_live_search failed for '{query_string[:40]}...': {e}")
-        # Return a neutral placeholder rather than the raw exception text —
-        # the model reads this as "ground truth," so it must never contain
-        # stack traces or error noise.
         return "No live snippets available (search layer failed)."
 
 # ==========================================
@@ -237,17 +222,11 @@ def extract_cluster_key(title):
     clean = title.upper()
     clean = re.sub(r'\|.*|LIVE.*|🔴.*', '', clean)
 
-    # English/acronym tokens — political shorthand like CM, EPS, DMK, BJP,
-    # VCK, NTK all run as short as 2-3 characters, so the threshold here is
-    # deliberately low. A small stopword list keeps common filler words from
-    # producing false clusters as a side effect of that lower threshold.
     words = [w for w in re.findall(r'\b[A-Z0-9]{3,}\b', clean) if w not in CLUSTER_STOPWORDS]
     if words:
         return "_".join(words[:3])
 
-    # These channels post primarily in Tamil script, so titles with no
-    # English acronyms would otherwise all collapse to a raw text prefix and
-    # rarely dedupe against each other. Fall back to Tamil-script tokens.
+
     tamil_words = re.findall(r'[\u0B80-\u0BFF]{3,}', clean)
     if tamil_words:
         return "_".join(tamil_words[:3])
@@ -285,8 +264,8 @@ def prune_processed_db(db):
             if date.fromisoformat(date_str) >= cutoff:
                 pruned[vid] = date_str
         except (ValueError, TypeError):
-            pruned[vid] = date_str  # keep anything unparseable rather than silently dropping it
-    return pruned
+            pruned[vid] = date_str  
+return pruned
 
 
 def save_processed_db(db):
