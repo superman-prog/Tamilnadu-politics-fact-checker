@@ -6,7 +6,7 @@ concurrency:
 
 on:
   schedule:
-    - cron: '0 */6 * * *' # Runs automatically every 6 hours
+    - cron: '0 */2 * * *' # Runs automatically every 6 hours
   workflow_dispatch:      # 🚀 THIS ENABLES THE MANUAL LAYER
     inputs:
       manual_urls:
